@@ -1,0 +1,7 @@
+---
+title: "ANCOVA HW"
+author: "Leandro Ledesma"
+date: "2024-10-16"
+output: html_document
+---
+
