@@ -1,0 +1,210 @@
+---
+title: "Repeated Measures ANOVA"
+author: "Kaylee Litson"
+date: "2024-10-14"
+output: html_document
+---
+
+#### Load packages
+```{r}
+library(tidyr)      # tidy messy data
+library(dplyr)      # data manipulation
+library(magrittr)   # using the pipe operator
+library(ggplot2)    # pretty plots and graphics
+library(readxl)     # read .xls or .xlsx files
+library(data.table) # faster aggregation of large data
+library(stats)      # some useful plot/distribution functions
+library(sjPlot)     # create pretty tables
+library(car)        # Levene's test, Type II SS, and Type III SS
+library(olsrr)      # more functions for OLS regression
+library(corrplot)   # visualize correlations
+library(emmeans)    # extract expected marginal means
+library(ggpubr)     # create publication ready plots
+library(rstatix)    # pipe-friendly R functions for easy analysis
+library(datarium)   # datasets used for in class example
+```
+
+### Topics in Lab
+  - Data Structure for Repeated Measures ANOVA
+  - Assumptions in Repeated Measures ANOVA
+      - Normality of the outcome variable in each cell
+      - No significant outliers in any cell
+      - Assumption of sphericity (tested by Mauchly's test of sphericity)
+  - Conducting Repeated Measures ANOVA
+  - Contrasts in Repeated Measures ANOVA
+
+### Import Data: Check Variables, Check Visualization, Check Structure
+The data used will include one baseline assessment of depression (t0), three post-treatment assessments of weightloss (t1-t3), and 2 treatment variables: diet and exercise.
+```{r}
+data("weightloss", package = "datarium")
+data("selfesteem2", package = "datarium")
+```
+Let's look at the data. Assume the following interpretations of the variables are true:
+  - weightloss at t1, t2, and t3 is measured as weight in kg lost since baseline.
+  - diet is a randomly assigned time-invariant treatment variable, where yes = dietician approved diet plan and no = diet as usual (control)
+  - exercises is a within-diet randomly assigned time-invariant treatment variable, where yes = inclusion of a 3-day per week personal exercise plan, and no = no specified exercise plan
+```{r}
+glimpse(weightloss)
+```
+Data are not in the correct format. We need to gather the data and reformat it into long format, converting our time variable and id variable into factors for easier analysis.
+```{r}
+weightloss <- weightloss %>%
+  gather(key = "time", value = "score", t1, t2, t3) %>%
+  convert_as_factor(id, time)
+
+glimpse(weightloss)
+```
+Examine some within group mean scores.
+```{r}
+weightloss %>% group_by(diet, exercises, time) %>% 
+  summarize_all(mean)
+
+weightloss %>% group_by(diet, exercises) %>% 
+  summarize_all(mean)
+
+weightloss %>% group_by(diet, time) %>% 
+  summarize_all(mean)
+
+weightloss %>% group_by(exercises, time) %>% 
+  summarize_all(mean)
+
+weightloss %>% group_by(diet) %>% 
+  summarize_all(mean)
+
+weightloss %>% group_by(exercises) %>% 
+  summarize_all(mean)
+
+weightloss %>% group_by(time) %>% 
+  summarize_all(mean)
+```
+Visualize the data
+```{r}
+ggplot(data = weightloss, aes(x = time, y = score, color = diet)) +
+  geom_violin() +
+  geom_boxplot(alpha = 0) +
+  geom_jitter(width = .1) +
+  theme_light() +
+  labs(caption = "Figure") +
+  ylab("Weight Loss (in kg)") +
+  facet_grid(.~exercises)
+  theme(
+    plot.caption =  element_text(hjust = 0, size = 20),
+    panel.grid.major =  element_blank(),
+    panel.grid.minor = element_blank()
+  )
+```
+
+The research question is: How does the combination of diet and exercise impact weight loss over time? This leads to a complex RM design, with two fixed factors (diet, exercise) each with two levels, and one random factor (time) with 3 levels. The primary unit of assessment is person.
+
+### Examine Assumptions of RM-ANOVA
+Normality of the outcome variable in each cell
+```{r}
+weightloss %>%
+  group_by(diet, exercises, time) %>%
+  shapiro_test(score)
+```
+Check normality visually using qqplot of each cell
+```{r}
+ggqqplot(weightloss, "score", ggtheme = theme_bw()) +
+  facet_grid(diet + exercises ~ time, labeller = "label_both")
+```
+
+Examine outliers in any cell
+```{r}
+weightloss %>%
+  group_by(diet, exercises, time) %>%
+  identify_outliers(score)
+
+```
+
+Assumption of homogeneity of variances across fixed factor levels
+```{r}
+weightloss %>%
+  group_by(time) %>%
+  levene_test(score ~ diet*exercises)
+```
+
+
+Assumption of sphericity (tested by Mauchly's test of sphericity)
+```{r}
+#to be computed as anova is computed. The Greenhouse-Geisser correction will be automatically applied to any factors violating this assumption
+```
+
+### Conduct RM-ANOVA
+```{r}
+
+res.aov <- anova_test(
+  data = weightloss, dv = score, wid = id,
+  within = c(time),
+  between = c(exercises, diet),
+  type = 3, #Type 3 SS
+  effect.size = "pes") #effect size of partial eta-squared)
+
+res.aov$`Mauchly's Test for Sphericity`
+
+get_anova_table(res.aov,   
+                correction = "auto") #options include GG, HF, none, and auto (which only applies GG to factors violating sphericity))
+```
+Results show that the test for sphericity was violated, indicating that the GG correction was assumed. Further, the highest level interaction is statistically significant. Let's describe results visually.
+
+### Examine Simple Effects in RM-ANCOVA
+Simple 2-way interactions at each time level, only computed for statistically significant 3-way interactions. 
+```{r}
+two.way <- weightloss %>%
+  group_by(time) %>%
+  anova_test(dv = score, wid = id, between = c(exercises, diet))
+two.way
+```
+
+Simple simple main effects, only computed for the significant 2-way simple interactions.
+```{r}
+diet.effect <- weightloss %>%
+  group_by(time, exercises) %>%
+  anova_test(dv = score, wid = id, between = diet)
+diet.effect #%>% filter(time == "t3") #only examine t3 estimates
+
+exercises.effect <- weightloss %>%
+  group_by(time, diet) %>%
+  anova_test(dv = score, wid = id, between = exercises)
+exercises.effect #%>% filter(time == "t3") #only examine t3 estimates
+
+```
+
+Main effect of diet with and without exercise at t3.
+Main effect of exercise without diet at t3.
+
+So at time point 3, if you do not diet then exercise helps. But if you are dieting at time point 3 then exercise does not help that much. 
+
+
+Simple simple pairwise comparisons, for significant main effects.
+```{r}
+pwc1 <- weightloss %>%
+  group_by(time, exercises) %>%
+  pairwise_t_test(score ~ diet, p.adjust.method = "bonferroni") %>%
+  select(-p, -p.signif) # Remove details
+# Focus on the results at t3
+pwc1 %>% filter(time == "t3")
+
+
+pwc2 <- weightloss %>%
+  group_by(time, diet) %>%
+  pairwise_t_test(score ~ exercises, p.adjust.method = "bonferroni") %>%
+  select(-p, -p.signif) # Remove details
+# Focus on the results at t3
+pwc2 %>% filter(time == "t3", diet == "no")
+```
+
+
+The first table is focused on the results of time point 3. At time 3, is there a general main effect of diet based on exercise (group 1 = no and group2 = yes). So here we see the same results as the first table in the previous chunck. 
+
+
+Visualize Final Output/Results
+```{r}
+```
+
+
+You may also be interested in time-varying covariates, which are not covered in this lab, but these other designs are covered in greater detail in online resources.
+
+Note: a lot of information/code and the example code was adapted from https://www.datanovia.com/en/lessons/repeated-measures-anova-in-r/
+and 
+https://www.datanovia.com/en/lessons/mixed-anova-in-r/#three-way-bbw-b

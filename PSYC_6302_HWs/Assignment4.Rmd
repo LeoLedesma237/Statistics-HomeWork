@@ -1,0 +1,235 @@
+---
+title: "HW 4: PSY 6302"
+author: "Leandro Ledesma"
+date: "2024-09-16"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(comment = "")
+knitr::opts_chunk$set(warning = FALSE)
+
+```
+
+```{r load in packages, echo = FALSE}
+library(tidyverse)
+library(psych) # Describe
+library(ggplot2)
+library(car) # LevenesTest
+library(kableExtra)
+```
+
+
+```{r load in data, echo=FALSE}
+# load in the data
+data <- read.delim("https://raw.githubusercontent.com/jasp-stats/jasp-data-library/main/Response%20to%20Eye%20Color/Response%20to%20Eye%20Color.csv", sep = ",")
+```
+
+
+## Section 1
+
+1. What is the independent variable in this example? Group, which is the eye color of the model.
+2. What is the dependent variable in this example? Score, the attitudes towards the brand.
+3. Which variable is the grouping variable? Group is the grouping variable.
+- 3a. How many levels (j) does the grouping variable have? 4
+- 3b. Which value in the dataset corresponds to which group? There are 222 observations in the dataset. The first 67 indicate scores for the Blue condition, the next 37 observations are for Brown, the next 41 are for Down, and the remaining 77 are for Green. This variable contains strings as values, not numbers.  
+4. Examine and briefly report relevant descriptive statistics, including measures of central tendency, variability, normality, and/or counts for each independent and dependent variable.
+
+- As mentioned, the predictor variable is Group, which contains 4 levels (Blue, Brown, Down, and Green). There are 67 (30%) observations for Blue, 37 (17%) for Brown, 41 (18%) for Down, and 77 (35%) for Green. The variable subject just tells us this is a repeated measures study since the participants have a response for more than one group. Even thought this variable looks numeric it is best to see it as categorical and count the frequency. Using the table function we see the first 37 subjects had scores for all 4 groups, four subjects had responses for three of the groups, 26 have responses in at least two groups and 10 participants only have a response for one group. The dependent variable is numeric and should be treated as such. It has a mean of 3.5 and standard deviation of 1.7 (variance is 2.9). When plotting the outcome, we see the distributions of scores are skewed to the right and the bell curve is very flat (not-normal), with most responses being near the value 1 (this is the mode). The lowest score is 1 and the max is 7. There are no missing data. 
+
+```{r section 1, out.width="60%"}
+# Print the first 6 rows
+head(data,6)
+
+# Number of observations in the dataset
+nrow(data)
+
+# How many groups values (j) are in the variable 'Group'
+unique(data$Group)
+
+# Is it repeated measures?
+table(data$Subj)
+
+# How many Scores are present for each group
+table(data$Group)
+sum(is.na(data))
+
+# Descriptives of the outcome
+describe(data$Score)
+
+# Is it normally distributed?
+hist(data$Score)
+```
+
+## Section 2
+
+1. Write the null hypothesis using population statistics symbols.
+
+- $H_{0}:\mu_{1}=\mu_{2}=\mu_{3}$
+
+2. Write the alternative hypothesis using population statistic symbols.
+
+- $H_{A}:\mu_{j}\neq\mu_{k}$
+
+3. Using typical language, write the null hypothesis.
+
+- There are no differences in the population means of scores across the groups being compared. 
+
+4. Using typical language, write the alternative hypothesis
+
+- There is a difference between at least two of the group population means from all that are being compared. 
+
+## Section 3
+
+1. Use a ggplot histogram to examine the data’s normality. Make sure to include relevant names for the x-axis, y-axis, a title or caption, and any color/line types you use.
+
+2.	Use the research design and original data source material to determine whether the assumption of independence is met. 
+
+- The assumption of independence is not met since several observations from the same subject are in more than one experimental condition (group). Also the distribution of scores do not look normally distributed. 
+
+3.	Examine the homogeneity of variance assumption for all j groups.
+
+- While not normally distributed, visually the variance of the outcome for all *j* groups looks to be similar. However, we also used Levene's test on the residuals of the model and see that it was not significant, which means that the variances are more or less equal. 
+
+4.	Without yet running an ANOVA and directly examining variance components, make a prediction about whether groups differ from one another or not. Use your graphic(s) to justify your answer.
+
+- By looking at the second graph, it seems like Blue will probably have the lowest mean since there are many reported 1's. Additionally, Green has a lot of scores for 3. Thus, if there are any mean group differences, it would probably between these two groups, but it is hard to say.  
+
+```{r section 3, out.width="60%"}
+# Create a histogram using ggplot
+data %>%
+  ggplot(aes(x= Score)) +
+  geom_histogram(fill = "white",
+                 color = "black") +
+  labs(title = "Figure 1: Histogram of Scores for Brand Attitude",
+       x = "Brand Attitude",
+       y = "Frequency") +
+  theme_minimal()
+
+# Plot for homogeneity
+data %>%
+  ggplot(aes(x= Score)) +
+  geom_histogram(fill = "white",
+                 color = "black", 
+                 bins = 10) +
+  labs(title = "Figure 2: Histogram of Scores for Brand Attitude across Eye Colors",
+       x = "Brand Attitude",
+       y = "Frequency") +
+  facet_wrap(~Group) +
+  theme_minimal()
+
+# Create a model for a one-way ANOVA to test the variance of the residuals.
+aov_model <- aov(Score~Group, data)
+
+# Run Levene's Test 
+leveneTest(aov_model, center = median) 
+
+```
+
+
+## Section 4
+
+1.	Fit both a restricted and full one-way ANOVA using aov(). Report your code.
+
+2.	Fit both a restricted and full one-way ANOVA using lm(). Report your code.
+
+3.	Using either the aov() or lm() model outputs, compare the fit between the restricted and full models. Report your code and output.
+
+- The output of the anova() function that does the model comparison is printed below.
+
+4.	Based on your comparison, which model should you choose to interpret?
+
+- The output of the model comparison using the anova() function shows that the full model is better than the restricted model since the p-value associated with the test is less than .05. Additionally, we see that the residual sum of squares for the full model is lower than that of the restricted model, indicating it was able to explain more of the variance in the outcome. 
+
+```{r section 4}
+# Create the restricted and full One-Way ANOVA Model using aov()
+restricted.aov <- aov(Score ~1, data)
+full.aov <- aov(Score ~ Group, data)
+
+# Create the restricted and full One-Way ANOVA model using lm()
+restricted.lm <- lm(Score ~1, data) 
+full.lm <- lm(Score ~ Group, data)
+
+# Compare the fit for aov models
+anova(restricted.aov, full.aov) 
+```
+
+
+## Section 5
+
+1.	Use a plot to examine the normality of errors within your model. Are errors normally distributed?
+
+- It looks like near both ends, the standardized residuals veer off what would be expected from the theoretical quantiles (the dots are not exactly on the diagonal). Using DePaul University as a reference (https://condor.depaul.edu/sjost/it223/documents/normal-plot.htm), the QQ-plots suggests **thick tails**. This is actually consistent with the distribution of scores for each group, their central part looks flat and the tails look thick. 
+
+2.	Calculate the coefficient of determination (eta-squared).
+
+- $\eta^2$ = $\frac{SS_{Between}} {SS_{total}}$ = 0.038 (Calculation is in the R code below)
+
+3.	Calculate the F statistic and write a single sentence to report the findings. Include the appropriate df, F value, test for statistical significance, and effect size.
+
+- We can calculate the F statistic by taking the mean squares (variance estimates) of the between groups and dividing it by the mean squares of the within groups. Mean squares are the between group and within group sum of squares divided by their respective degrees of freedom. Thus
+(24.4/3)/(613.1/218) = (8.13)/(2.81) =  2.89. When comparing this to the summary table below, we see the F value equals what we calculated.
+
+- A One-Way ANOVA showed a significant main effect of Group, *F*(3,218)= 2.89, *p* = .04, with a small effect size ($\eta^2$ = 0.038), indicating that the eye color of the model influenced participants' attitudes toward the brand. 
+
+```{r section 5, out.width="50%"}
+# Plotting the errors
+plot(full.aov)
+
+# Calculating the coefficient of determination (eta-squared)
+summary(full.aov)
+eta.squared = 24.4/(24.4 + 613.1)
+round(eta.squared,3)
+
+```
+
+## Section 6
+
+1.	Using APA formatting, write a concise 1 paragraph report describing the models you tested, model fit, model fit comparisons, model assumptions, model results, and any figures/tables relevant for interpreting model results. 
+
+A one-way ANOVA was used to investigate if the color of eye models influenced attitudes towards the brand. The omnibus test of analysis of variance showed that the effect of eye color in the full model was a significant predictor of brand attitude *F*(3,218)= 8.14, *p* < .05, with a small effect size ($\eta^2$ = 0.038). Additionally, we did a model comparison of the restricted ANOVA model (model with 'no' predictors) and the full ANOVA model (included eye color as a factor), and the full model explained more of the variance of the outcome by reducing the residual sum of squares by 24.42 (*p* < .05). However, post-hoc analysis using Tukey's HSD test showed that there were no statistically different means across the levels of eye color (**Table 1**). We don't believe it is due to a lack of power, since the sample sizes of each level of eye color had more than 30 subjects (**Table 2**). However, a main contributor to these results could be due to 1) having subjects report scores on multiple levels of eye color, which violates the assumption of independence and would be better tested for in a repeated measures ANOVA and 2) having non-normally distributed scores for each level of eye color (**Figure 2**). The second point is corroborated by the QQ-plots of the standardized residuals in section 5 that indicated thick tails.
+
+
+```{r, echo = FALSE}
+# Run Tukey's HSD Test
+Tukey.OutPut <- TukeyHSD(full.aov, "Group")
+
+# Print out the results
+round(as.data.frame(Tukey.OutPut$Group),2) %>%
+  kbl(caption = "Table 1: Tukey Post Hoc Test") %>%
+  kable_paper("hover", full_width = F)
+
+
+# Perform describeBy
+output <- as.data.frame(describeBy(data$Score, group = data$Group, mat = TRUE))
+
+# Output cleaned
+output2 <- select(output, group = group1, n, mean, sd) %>%
+  mutate(mean = round(mean,2),
+         sd = round(sd,2))
+
+row.names(output2) <- NULL
+
+# View the data frame
+output2 %>%
+  kbl(caption = "Table 2: Group Mean of Brand Attitude") %>%
+  kable_paper("hover", full_width = F)
+```
+
+
+## Section 7
+
+
+1.	Describe in no more than 3 sentences. ANOVA is used to examine group mean differences, yet we are speaking about ANOVA in terms of variance components and variability. What are at least two reasons we compare variance components instead of just examining mean differences?
+
+- Using an ANOVA to test for differences across three or more groups is much better than running multiple t-tests because it does not increase the family-wise type I error rate, which lowers the risk of false positives. Additionally, ANOVAs can provide powerful methods of "post-hoc" pairwise comparisons while maintaining error control. This can make the examination of differences across multiple groups more efficient and reliable. 
+
+
+2.	When interpreting the omnibus F-test results, did you struggle? Why or why not?
+
+- No it was pretty straight forward. The omnibus test is a powerful test that shows there may be a difference between at least two of the groups, however it does not indicate which ones. Thus, a significant omnibus test means we can now use post-hoc comparisons to identify which groups (if any) are different from each other. 
+
+
+

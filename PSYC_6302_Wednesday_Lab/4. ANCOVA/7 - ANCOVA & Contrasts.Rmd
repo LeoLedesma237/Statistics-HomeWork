@@ -1,0 +1,260 @@
+---
+title: "Lab 6 ANOVA, ANCOVA Contrasts & Extended Topics"
+author: "your name"
+output: 
+  word_document:
+    toc: true
+---
+
+Learning Objectives
+
+- ANCOVA
+- ANCOVA Assumptions
+- ANCOVA Simple Effects
+- ANCOVA Simple Slopes
+
+#### Load packages
+```{r}
+library(tidyr)      # tidy messy data
+library(dplyr)      # data manipulation
+library(magrittr)   # using the pipe operator
+library(ggplot2)    # pretty plots and graphics
+library(readxl)     # read .xls or .xlsx files
+library(data.table) # faster aggregation of large data
+library(stats)      # broad package; some useful plot/distribution functions
+library(sjPlot)     # create pretty tables and plots
+library(car)        # includes Levene's test, Type II SS, and Type III SS
+library(olsrr)      # more functions for OLS regression, including Breusch-Pagan homoscedasticity test
+library(corrplot)   # visualize correlations
+library(emmeans)    # extract expected marginal means
+```
+
+```{r}
+epldat <- read.delim("https://raw.githubusercontent.com/jasp-stats/jasp-data-library/main/Erotic%20Pictures%20and%20Love/Erotic%20Pictures%20and%20Love.csv", sep = ",")
+```
+
+# *Dataset Description from JASP: *
+This data set, "Erotic Pictures and Love", provides men and women's feelings towards their partners after watching either erotic or artistic pictures.
+
+*Variables:*
+Gender - Participant's gender.
+Age - Participant's age.
+RelLen - Number of years in a current relationship.
+Condition - Experimental condition (Nudes = nude pictures, Abstract Art = abstract art pictures)
+PartnerAttractiveness - A sum of 6 Likert scales about the partner's attractiveness (1 = not at all, 9 = very much).
+LoveForPartner - A sum of 13 Likert scales from a Love Scale.
+AveragePleasantness - A mean of 3 items about pleasantness of the pictures.
+This example JASP file demonstrates how to conduct a factorial 2 x 2 ANOVA. Specifically, we will test whether men and women rate pleasantness of the pictures differently for nude and abstract art.
+
+*Reference:*
+Balzarini, R. N., Bobson, K., Chin, K., and Campbell, L. (2017). Does exposure to erotica reduce attraction and love for romantic partners in men? Independent replications of Kenrick, Gutierres, and Goldberg (1989), Journal of Experimental Social Psychology, 70: 191-197
+
+# *Explore the dataset*
+Initial inspection reveals that the dataset contains multiple variables: Gender, Age, RelLen, Condition, PartnerAttractiveness, LoveForPartner, and AveragePleasantness. Let's first check and clean variables, then compute a 2x2 ANOVA of factors Gender and Condition impacting AveragePleasantness. For more context about these variables, visit the online JASP repository.
+
+Examine data and make changes to structure as needed.
+```{r}
+glimpse(epldat)       # glimpse the data
+```
+
+Both factor variables are coded as characters, so let's change this. In addition to changing the factor levels, I want to create new variable that have better names and known number values associated with each level. We will call these new variables `Male`, `Female`, `Nude`, and `Abstract`. For each of these new variables, let's code the value that corresponds to the named factor level to 1 and the value that corresponds to the non-named factor level to 0.
+```{r}
+epldat <- epldat %>%  mutate(Gender = factor(x = Gender),
+                             Condition = factor(x = Condition),
+                             Male = factor(x = Gender),
+                             Female = factor(x = Gender),
+                             Nude = factor(x = Condition),
+                             Abstract = factor(x = Condition))
+#use the ifelse() function to recode into binary variables easily. 
+
+#Dummy codes contrast specific levels against one another
+epldat <- epldat %>%  mutate(Male = ifelse(Male=="Male", 1, 0),
+                             Female = ifelse(Female=="Female", 1, 0),
+                             Nude = ifelse(Nude=="Nudes", 1, 0),
+                             Abstract = ifelse(Abstract=="Abstract Art", 1, 0))
+
+
+#Effect codes, codes must sum to 0 
+epldat <- epldat %>%  mutate(Male_ec = ifelse(Gender=="Male", 1, 
+                                           ifelse(Gender=="Female", -1, 0)),
+                             Abstract_ec = ifelse(Condition=="Abstract Art", 1, 
+                                           ifelse(Condition=="Nudes", -1, 0)))
+```
+
+
+Now, let's check the data again.
+```{r}
+glimpse(epldat)
+summary(epldat)
+```
+All looks good. One useful piece in our newly created variables: the mean is equal to the proportion of individuals across each of the factor level conditions.
+
+Look at simple plots to visualize the outcome variable
+```{r}
+hist(epldat$AveragePleasantness)
+qqnorm(epldat$AveragePleasantness)
+```
+
+# *Assumption checks*
+There are 4 general assumptions in factorial ANOVA
+
+ANCOVA Assumptions
+  1. Linearity of relationship between DV and covariates (assumed in analysis, can visualize raw data to see if assumption is met)
+  2. Homogeneity of regression slopes (testable in analysis; if false, slopes are not parallel)
+  3. Error Assumptions (testable after model is fit): 
+       a. The expected population value of the errors across all cells/groups being compared are 0.
+       b. The variance of observations is equal to the population variance of the errors.
+       c. Errors are normally distributed with an expected mean of 0 and a variance of σ^2
+       d. Homogeneity of variances for all combinations of jk groups.
+  4. Independence among Factors (can be examined with correlations): IVs/covariates should not be too highly correlated with each other, since this can impact the covariance matrix and make it difficult to distinguish the impact of each factor on the DV.
+  
+Other Considerations important for interpreting results
+  1. Covariate measured without error: Covariates should be sufficiently reliably measured.
+  2. No unmeasured confounding variables: There should be no unmeasured confounding variables.
+
+Not meeting these assumptions can lead to conducting a different test, such as the Kruskal Wallis test, which better accounts for the risk of Type 1 error in the presence of nonnormality.
+
+
+# *Fitting ANCOVAs lm()*
+**Creating sets of models. Note that lm, by default, assumes SS Type I. We can test SS Type II, and SS Type III by conducting different sets of model comparisons. From last lab, recall the series of models we computed.**
+```{r}
+# Model 1 from Slideset 6; this is the full model
+model_1 <- lm(AveragePleasantness ~ Gender * Condition, data = epldat)
+
+# Model 2 from Slideset 6
+model_2 <- lm(AveragePleasantness ~ Gender + Condition, data = epldat)
+
+#Models 3a and 3b from Slideset 6 (remember, these models drop a main effect term but include the interaction term. They are computed only for model comparison and should not be interpreted. They will help us determine model comparisons underlying Type III SS
+model_3a <- lm(AveragePleasantness ~ Gender + Condition:Gender, data = epldat) #use : to include interaction without lower level effects
+model_3b <- lm(AveragePleasantness ~ Condition + Condition:Gender, data = epldat)
+
+# Model 4 from Slideset 6
+model_4 <- lm(AveragePleasantness ~ Gender, data = epldat)
+
+# Model 5 from Slideset 6
+model_5 <- lm(AveragePleasantness ~ Condition, data = epldat)
+
+# Model 6 from Slideset 6; this is the fully restricted model, or the null model
+model_6 <- lm(AveragePleasantness ~ 1, data = epldat)
+
+```
+
+
+*Examining models using different types of SS*
+Type I SS: When the order variables are entered into the equation is important (allows "controlling" for variance)
+Type II SS: When order does not matter, and the 
+Remember, if we expect the interaction term to be important, we should use Type III SS.
+```{r}
+model_1_type3 <- lm(AveragePleasantness ~ Abstract * Male, data = epldat) %>% Anova(type = 'III')
+model_1_type2 <- lm(AveragePleasantness ~ Abstract * Male, data = epldat) %>% Anova(type = 'II')
+#alternatively, if we have already created the lm() object, we can simply replace the first part of the above code with the lm() object's name. This simplifies code in the long run.
+model_1_type3 <- model_1 %>% Anova(type = 'III')
+```
+
+*Model comparsion using anova()*
+- The anova() function can be used to examine differences between model fit from either aov() or lm() objects, among others. This is how we will compare model fit to determine which model to select and interpret. Let's compute the comparisons for Type I SS.
+```{r}
+#Type I SS Comparisons
+anova(model_6, model_4, model_2, model_1) 
+anova(model_6, model_5, model_2, model_1) 
+
+
+
+```
+
+```{r}
+summary(model_1)
+```
+Model fit results show that adding an additional variable and creating a more complex model, does in fact, statistically significantly improve the model's fit and ability to predict AveragePleasantness.
+
+# Let's now add the covariate, Age, into the analysis
+First, let's check the correlations between our chosen covariate, Age, and the other IVs
+```{r}
+epldatcors <- subset(epldat, select = c("Age", "Male", "Abstract"))
+cor(epldatcors, use = "pairwise.complete.obs", method = "spearman")
+
+```
+
+
+Let's add the covariate Age into this model, first assuming an additive effect, then a multiplicative effect. The additive effect model compared to the multiplicative model will tell us whether we meet homogeneity of regression slopes assumption.
+```{r}
+model_cov1 <- lm(AveragePleasantness ~ Age + Gender * Condition , data = epldat)
+model_cov2 <- lm(AveragePleasantness ~ Gender * Condition * Age, data = epldat)
+
+summary(model_cov1)
+#if relevant, we may also want to examine only 
+summary(model_cov2)
+```
+
+Center your continuous predictor/covariates when doing interactions
+
+```{r}
+epldat$Age2 <- scale(elpdat$Age, center = TRUE, scale = FALSE)
+
+```
+
+Now let's compare the model without covariates to the model with covariates.
+
+This doesn't work cause there was missing data in the dataset with the covariates or smt like that
+```{r}
+anova(model_1, model_cov1)
+anova(model_1, model_cov2)
+```
+
+uh oh, sample sizes differ across models. Let's talk about that. We also didn't find statistical significance of the covariate. What other covariates might we want to examine?
+
+Results: update to final model chosen
+```{r}
+print("FULL MODEL")
+summary(model_cov1)
+```
+
+```{r}
+ggplot(data = epldat, aes(x = Age, y = AveragePleasantness, color = Gender)) +
+  geom_point() +
+  geom_smooth() +
+  theme_bw() +
+  labs(caption = "Figure 1: ") +
+  theme(
+    plot.caption =  element_text(hjust = 0, size = 20),
+    panel.grid.major =  element_blank(),
+    panel.grid.minor = element_blank()
+  ) +
+  xlab("Abstract vs Nude") +
+  ylab("Average Pleasantness")
+```
+
+
+Assumption 1 post-model fit: normality of error terms
+The Shapiro-Wilk test is a test of normality. The null hypothesis is that terms are normally distributed while the alternative hypothesis is that terms are non-normally distributed. When examining the Shapiro-Wilk test to our model residuals, we typically want to find a non-significant effect, which tells us that the errors are not non-normally distributed.
+```{r}
+hist(model_1$residuals)
+plot(model_1, which = c(1,2)) #selects only the first two plots from the plot function
+shapiro.test(resid(model_1))
+```
+
+Assumption 2 post-model fit: homoscedasticity of error terms
+
+We can examine the homoscedasticity of error terms using various tests, including the Levene's test and Breusch-Pagan, among others. These two are shown below. Results may differ across tests, and you should use these tests with caution, since it is unclear the extent to which statistical tests on model assumptions are actually reliable. This is often why visualization is used instead. If there are clear differences or expected differences in variances across groups, we will discuss additional methods that assume unequal variances in coming weeks.
+
+Levene's test is a robust method to examine variance equality across groups that is robust to outliers and normality assumptions, especially when centered at the median of the distributions. When applying it to examine residual variances, it is examined in relation to a null hypothesis that states the residual variances across groups are equal.
+The Breusch-Pagan Test is another possible test to examine heteroskedasticity in more complex linear regression model residuals (including both ANOVA and regression), assuming that the residual terms are normally distributed. It is examined in relation to a null hypothesis that states the residual variances across groups are equal.
+```{r}
+leveneTest(model_1, center = median) # using center=median a test more robust test to nonnormality
+ols_test_breusch_pagan(model_1)
+```
+
+For the full model, both factors as well as the interaction between factors have p-values less than .05.
+Additionally, we can see that the errors are relatively normally distributed. In combination with all other assumptions, this means that the full model is one that best fits the data, so we can now interpret the full model.
+- These tests are **omnibus tests**, meaning that we reject the null hypothesis that ALL groups within the test are equal. 
+
+# Examining simple effects
+```{r}
+#tbd
+```
+
+Examining Simple Slopes
+```{r}
+#tbd
+```
+

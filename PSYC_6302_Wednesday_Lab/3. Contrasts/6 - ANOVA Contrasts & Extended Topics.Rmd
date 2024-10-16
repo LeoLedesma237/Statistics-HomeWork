@@ -1,0 +1,285 @@
+---
+title: "Lab 6 ANOVA, ANCOVA Contrasts & Extended Topics"
+author: "your name"
+output: 
+  word_document:
+    toc: true
+---
+
+Learning Objectives
+
+- Review changing factor coding values
+- ANCOVA
+- Contrasts
+
+#### Load packages
+```{r}
+library(tidyr)      # tidy messy data
+library(dplyr)      # data manipulation
+library(magrittr)   # using the pipe operator
+library(ggplot2)    # pretty plots and graphics
+library(readxl)     # read .xls or .xlsx files
+library(data.table) # faster aggregation of large data
+library(stats)      # broad package; some useful plot/distribution functions
+library(sjPlot)     # create pretty tables and plots
+library(car)        # includes Levene's test, Type II SS, and Type III SS
+library(olsrr)      # more functions for OLS regression, including Breusch-Pagan homoscedasticity test
+library(emmeans)    # extract expected marginal means
+```
+
+```{r}
+epldat <- read.delim("https://raw.githubusercontent.com/jasp-stats/jasp-data-library/main/Erotic%20Pictures%20and%20Love/Erotic%20Pictures%20and%20Love.csv", sep = ",")
+```
+
+# *Dataset Description from JASP: *
+This data set, "Erotic Pictures and Love", provides men and women's feelings towards their partners after watching either erotic or artistic pictures.
+
+*Variables:*
+Gender - Participant's gender.
+Age - Participant's age.
+RelLen - Number of years in a current relationship.
+Condition - Experimental condition (Nudes = nude pictures, Abstract Art = abstract art pictures)
+PartnerAttractiveness - A sum of 6 Likert scales about the partner's attractiveness (1 = not at all, 9 = very much).
+LoveForPartner - A sum of 13 Likert scales from a Love Scale.
+AveragePleasantness - A mean of 3 items about pleasantness of the pictures.
+
+This example JASP file demonstrates how to conduct a factorial 2 x 2 ANOVA. Specifically, we will test whether men and women rate pleasantness of the pictures differently for nude and abstract art.
+
+*Reference:*
+Balzarini, R. N., Bobson, K., Chin, K., and Campbell, L. (2017). Does exposure to erotica reduce attraction and love for romantic partners in men? Independent replications of Kenrick, Gutierres, and Goldberg (1989), Journal of Experimental Social Psychology, 70: 191-197
+
+# *Explore the dataset*
+Initial inspection reveals that the dataset contains multiple variables: Gender, Age, RelLen, Condition, PartnerAttractiveness, LoveForPartner, and AveragePleasantness. Let's first check and clean variables, then compute a 2x2 ANOVA of factors Gender and Condition impacting AveragePleasantness. For more context about these variables, visit the online JASP repository.
+```{r}
+epldat                # view the data
+```
+
+Next, look at the way data is coded.
+```{r}
+glimpse(epldat)       # glimpse the data
+summary(epldat)       # examine data summaries
+lapply(epldat, class) # check variable classes; ensure that the IV is a factor, DV is continuous for one-way ANOVA
+```
+
+Both factor variables are coded as characters, so let's change this. In addition to changing the factor levels, I want to create new variable that have better names and known number values associated with each level. We will call these new variables `Male`, `Female`, `Nude`, and `Abstract`. For each of these new variables, let's code the value that corresponds to the named factor level to 1 and the value that corresponds to the non-named factor level to 0.
+```{r}
+epldat <- epldat %>%  mutate(Gender = factor(x = Gender),
+                             Condition = factor(x = Condition),
+                             Male = factor(x = Gender),
+                             Female = factor(x = Gender),
+                             Nude = factor(x = Condition),
+                             Abstract = factor(x = Condition))
+
+#use the ifelse() function to recode into binary variables easily
+epldat <- epldat %>%  mutate(Male = ifelse(Male=="Male", 1, 0),
+                             Female = ifelse(Female=="Female", 1, 0),
+                             Nude = ifelse(Nude=="Nudes", 1, 0),
+                             Abstract = ifelse(Abstract=="Abstract Art", 1, 0))
+```
+
+Now, let's check the data again.
+```{r}
+glimpse(epldat)
+summary(epldat)
+```
+All looks good. One useful piece in our newly created variables: the mean is equal to the proportion of individuals across each of the factor level conditions.
+
+Look at simple plots to visualize the outcome variable
+```{r}
+hist(epldat$AveragePleasantness)
+qqnorm(epldat$AveragePleasantness)
+```
+
+# *Assumption checks*
+There are 4 general assumptions in factorial ANOVA
+  1. Normality Assumption: DV responses for within each cell have a normal *population* distribution.
+  2. Independence Assumption: Samples are drawn independent of each other across and within factor levels.
+  3. Error Assumptions: 
+       a. The expected population value of the errors across all cells/groups being compared are 0.
+       b. The variance of observations is equal to the population variance of the errors.
+       c. Errors are normally distributed with an expected mean of 0 and a variance of σ^2
+       d. Homogeneity of variances for all combinations of jk groups.
+  4. Independence among Factors: IVs should not be too highly correlated with each other, since this can impact the covariance matrix and make it difficult to distinguish the impact of each factor on the DV.
+
+Not meeting these assumptions can lead to conducting a different test, such as the Kruskal Wallis test, which better accounts for the risk of Type 1 error in the presence of nonnormality.
+
+Explore the data's normality using ggplot histogram, skewness, kurtosis
+```{r}
+ggplot(data = epldat, aes(x = AveragePleasantness)) +
+  geom_histogram(binwidth = .5) +
+  theme_bw() +
+  labs(caption = "Figure 1: Distribution of AveragePleasantness") +
+  theme(
+    plot.caption =  element_text(hjust = 0, size = 15),
+    panel.grid.major =  element_blank(),
+    panel.grid.minor = element_blank()
+  ) +
+  xlab("AveragePleasantness") +
+  ylab("Frequency")
+```
+
+Fancy boxplot/violin-plot to visualize distribution of AveragePleasantnesss in each experimental condition
+```{r}
+ggplot(data = epldat, aes(x = Condition, y = AveragePleasantness)) +
+  geom_violin() +
+  geom_boxplot(alpha = 0) +
+  geom_jitter(width = .1) +
+  theme_light() +
+  labs(caption = "Figure 2a: Average Pleasantness by Condition") +
+  ylab("Heart Rate") +
+  theme(
+    plot.caption =  element_text(hjust = 0, size = 15),
+    panel.grid.major =  element_blank(),
+    panel.grid.minor = element_blank()
+  )
+```
+
+Fancy boxplot/violin-plot to visualize distribution of AveragePleasantnesss in each experimental condition & across gender
+```{r}
+ggplot(data = epldat, aes(x = Condition, y = AveragePleasantness)) +
+  geom_violin() +
+  geom_boxplot(alpha = 0) +
+  geom_jitter(width = .1) +
+  theme_light() +
+  labs(caption = "Figure 2b: Average Pleasantness by Condition and Gender") +
+  ylab("Heart Rate") +
+  facet_grid(.~Gender) +
+  theme(
+    plot.caption =  element_text(hjust = 0, size = 15),
+    panel.grid.major =  element_blank(),
+    panel.grid.minor = element_blank()
+  )
+```
+
+# *Fitting ANOVAs lm()*
+
+**Creating full & restricted models using lm(). Note that lm, by default, assumes SS Type I.**
+Restricted is an empty model (i.e., no factors). The full model (in this case) has two factor predictors that interact, and assumed main effects of those predictors. Let's use the dummy coded variables. Let's also assume that we want to examine the effect of Condition AFTER accounting for the effect of gender.
+```{r}
+# Model 6 from Slideset 6; this is the fully restricted model, or the null model
+model_6 <- lm(AveragePleasantness ~ 1, data = epldat)
+
+# Model 1 from Slideset 6; this is the full model
+model_1 <- lm(AveragePleasantness ~ Male * Abstract, data = epldat)
+```
+
+Let's also create some models that restrict the interaction effect and only estimate main effects. We'll then use these models to see how they relate to different Types of SS.
+```{r}
+# Model 2 from Slideset 6
+model_2 <- lm(AveragePleasantness ~ Male + Abstract, data = epldat) # Called main effects model
+
+# Model 3a from Slideset 6 (remember, this model drops a main effect term but includes the interaction term. It is not an appropriate model to code and is only used for comparison, so we won't actually estimate it. Instead, it will be computed "behind the scenes" for the model comparisons using Type III SS). As a reminder, this is what it is doing behind the scenes.
+model_3a <- lm(AveragePleasantness ~ Male + Abstract:Male, data = epldat)
+
+# Model 3b from Slideset 6 (similar to Model 3a, will only be computed "behind the scenes" for the model comparisons using Type III SS)
+model_3b <- lm(AveragePleasantness ~ Abstract + Abstract:Male, data = epldat)
+
+# Model 4 from Slideset 6
+model_4 <- lm(AveragePleasantness ~ Male, data = epldat)
+
+# Model 5 from Slideset 6
+model_5 <- lm(AveragePleasantness ~ Abstract, data = epldat)
+
+```
+
+# Examining models using different types of SS
+Type I SS: When the order variables are entered into the equation is important (allows "controlling" for variance)
+Type II SS: When order does not matter, and the 
+Remember, if we expect the interaction term to be important, we should use Type III SS.
+```{r}
+model_1_type3 <- lm(AveragePleasantness ~ Abstract * Male, data = epldat) %>% Anova(type = 'III')
+#alternatively, if we have already created the lm() object, we can simply replace the first part of the above code with the lm() object's name. This simplifies code in the long run.
+model_1_type3 <- model_1 %>% Anova(type = 'III')
+model_1_type2 <- model_1 %>% Anova(type = 'II') # This is to show that we can do this
+```
+
+Let's now fit a model using Type III SS for every appropriate model we have already created (we will exclude models 3a and 3b, since they are for comparison purposes only). For large sets of models, you could create a function to do this if desired.
+```{r}
+model_1_type3 <- model_1 %>% Anova(type = 'III')
+model_2_type3 <- model_2 %>% Anova(type = 'III')
+model_4_type3 <- model_4 %>% Anova(type = 'III')
+model_5_type3 <- model_5 %>% Anova(type = 'III')
+model_6_type3 <- model_6 %>% Anova(type = 'III')
+```
+
+
+
+# *Model comparsion using anova()*
+- The anova() function can be used to examine differences between model fit from either aov() or lm() objects, among others. This is how we will compare model fit to determine which model to select and interpret.
+- Note: This is the model fit for the full model.
+
+I want to compare the the full model, a main effect only model, and the restricted models. I'll examine these using the type III SS models.
+```{r}
+anova(model_6_type3, model_2_type3, model_1_type3) # It doesn't like this, it changed the object or smt; this needs to be figure out because right now it seems we can only compare Type 1 SS models. 
+
+anova(model_6, model_4, model_2, model_1) # It likes this, this is Type 1 SS
+```
+
+Model fit results show that adding an additional variable and creating a more complex model, does in fact, statistically significantly improve the model's fit and ability to predict AveragePleasantnesss.
+
+Results
+```{r}
+print("FULL MODEL")
+summary(model_1)
+```
+
+Assumption 1 post-model fit: normality of error terms
+The Shapiro-Wilk test is a test of normality. The null hypothesis is that terms are normally distributed while the alternative hypothesis is that terms are non-normally distributed. When examining the Shapiro-Wilk test to our model residuals, we typically want to find a non-significant effect, which tells us that the errors are not non-normally distributed.
+```{r}
+hist(model_1$residuals)
+plot(model_1, which = c(1,2)) #selects only the first two plots from the plot function
+shapiro.test(resid(model_1))
+```
+
+Assumption 2 post-model fit: homoscedasticity of error terms
+
+We can examine the homoscedasticity of error terms using various tests, including the Levene's test and Breusch-Pagan, among others. These two are shown below. Results may differ across tests, and you should use these tests with caution, since it is unclear the extent to which statistical tests on model assumptions are actually reliable. This is often why visualization is used instead. If there are clear differences or expected differences in variances across groups, we will discuss additional methods that assume unequal variances in coming weeks.
+
+Levene's test is a robust method to examine variance equality across groups that is robust to outliers and normality assumptions, especially when centered at the median of the distributions. When applying it to examine residual variances, it is examined in relation to a null hypothesis that states the residual variances across groups are equal.
+The Breusch-Pagan Test is another possible test to examine heteroskedasticity in more complex linear regression model residuals (including both ANOVA and regression), assuming that the residual terms are normally distributed. It is examined in relation to a null hypothesis that states the residual variances across groups are equal.
+```{r}
+leveneTest(model_1, center = median) # using center=median a test more robust test to nonnormality
+ols_test_breusch_pagan(model_1)
+```
+
+For the full model, both factors as well as the interaction between factors have p-values less than .05.
+Additionally, we can see that the errors are relatively normally distributed. In combination with all other assumptions, this means that the full model is one that best fits the data, so we can now interpret the full model.
+- These tests are **omnibus tests**, meaning that we reject the null hypothesis that ALL groups within the test are equal. 
+
+# Examining the estimated marginal means
+```{r}
+library(furniture)
+table1(epldat, AveragePleasantness, splitby = "Abstract") #raw means
+emmeans(model_2, specs = "Abstract") #versus estimated marginal means
+emmeans(model_1, specs = "Male") # These are means obtained for males while controlling for Abstract and Abstract x Males
+```
+
+
+# Using factors vs using factor coding to examine ANOVAs. Although these all will lead to the same omnibus F statistic
+```{r}
+model_factor <- lm(AveragePleasantness ~ Condition * Gender, data = epldat)
+model_am <- lm(AveragePleasantness ~ Abstract * Male, data = epldat)
+model_af <- lm(AveragePleasantness ~ Abstract * Female, data = epldat)
+model_nm <- lm(AveragePleasantness ~ Nude * Male, data = epldat)
+model_nf <- lm(AveragePleasantness ~ Nude * Female, data = epldat)
+
+tab_model(model_factor, model_am, model_af, model_nm, model_nf) #create pretty html table of multiple model results
+```
+Here, we can see that model fits are essentially equivalent, yet the main effects estimates differ. Why is this?
+
+
+# Contrast Coding
+
+### *We will compute contrasts for a set of comparisons that might be interesting* Let's look at Gender in Model 1.
+```{r}
+contrasts(epldat$Gender) = contr.sum
+model_factor <- model_1 %>% Anova(type = 'III')
+
+summary(model_1_type3)
+```
+
+# Let's build an ANCOVA model. Which variables do you think might be important to include in the model?
+```{r}
+
+```
+

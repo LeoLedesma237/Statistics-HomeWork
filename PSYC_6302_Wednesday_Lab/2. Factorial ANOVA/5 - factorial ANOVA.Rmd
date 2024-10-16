@@ -1,0 +1,264 @@
+---
+title: "Lab 4 One-way ANOVA"
+author: "your name"
+output: 
+  word_document:
+    toc: true
+---
+
+Learning Objectives
+
+- Learning the basics of aov()
+- Model comparisons using anova()
+- Review changing factor coding
+- Generate effect sizes
+
+#### Load packages
+```{r}
+library(readxl)
+library(tidyr)      # tidy messy data
+library(dplyr)      # data manipulation
+library(magrittr)   # using the pipe operator
+library(ggplot2)    # pretty plots and graphics
+library(readxl)     # read .xls or .xlsx files
+library(data.table) # faster aggregation of large data
+library(stats)      # broad package; some useful plot/distribution functions
+library(car)        # includes Levene's test
+```
+
+```{r}
+# Set working directory
+setwd("/Users/leandroledesma/Documents/Grad Classes/2024_Fall/PSYC 6302 (Exp Desg)/Wednesday Lab Work/2. Factorial ANOVA")
+
+hrdat <- read_excel("heartrate.xlsx")
+
+hrdat <- hrdat %>%
+  rename(Heart.Rate =`Heart Rate`)
+```
+
+
+# *Dataset Description from JASP: *
+This data set, "Heart Rate", provides heart rates of male and female runners and generally sedentary participants following 6 minutes exercise.
+
+*Variables:*
+  `Gender` - Participant's gender (coded: Female, Male).
+  `Group` - Group of 'Runners' (averaging more than15 miles per week) and 'Control' group (generally sedentary participant).
+  `Heart.Rate` - Heart rate after six minutes of exercise.
+This example JASP file demonstrates the use of a 2 x 2 between subjects ANOVA. Specifically, we test whether heart rates differ between gender and groups. 
+
+*References:*
+Moore, D. S., McCabe, G. P., and Craig, B. A. (2012). Introduction to the Practice of Statistics (7th ed.). New York: Freeman.
+Wood, P.D, Haskell, W. L., Stern, M. P., Lewis, S. and Perry, C. (1977). Plasma lipoprotein distributions in male and female runners. Annals of the New York Academy of Sciences, 301: 748-763.
+
+# *Explore the dataset*
+Initial inspection reveals that the dataset contains two factors, Gender and Group, and a continuous heart rate HeartRate (Heart.Rate). For more context about these variables, visit the online JASP repository.
+```{r}
+hrdat                # view the data
+```
+
+Personally, I do not like when variable names contain "." in them, so I'm going to update this variable name
+```{r}
+names(hrdat)[names(hrdat) == "Heart.Rate"] <- "HeartRate"
+#check updated names
+names(hrdat)
+```
+Next, look at the way data is coded.
+```{r}
+glimpse(hrdat)       # glimpse the data
+```
+
+```{r}
+summary(hrdat)       # examine data summaries
+```
+
+```{r}
+lapply(hrdat, class) # check variable classes; ensure that the IV is a factor, DV is continuous for one-way ANOVA
+```
+Based on glimpsing, summarizing, and checking the class of the data, I can see a few issues with data coding. Both factor variables are coded as characters, so let's change this. I'll show you how to do this using tidy functions, which simplifies the code when you are updated the structure of multiple variables. 
+```{r}
+hrdat <- hrdat %>%  mutate(Gender = factor(x = Gender),
+                           Group = factor(x = Group))
+```
+
+Now, let's check the data again.
+```{r}
+summary(hrdat)
+lapply(hrdat, class) 
+```
+All looks good. 
+
+Look at simple plots to visualize the outcome variable
+```{r}
+hist(hrdat$HeartRate)
+qqnorm(hrdat$HeartRate)
+```
+
+# *Assumption checks*
+There are 4 general assumptions in factorial ANOVA
+  1. Normality Assumption: DV responses for within each cell have a normal *population* distribution.
+  2. Independence Assumption: Samples are drawn independent of each other across and within factor levels.
+  3. Error Assumptions: 
+       a. The expected population value of the errors across all cells/groups being compared are 0.
+       b. The variance of observations is equal to the population variance of the errors.
+       c. Errors are normally distributed with an expected mean of 0 and a variance of σ^2
+       d. Homogeneity of variances for all combinations of jk groups.
+  4. Independence among Factors: IVs should not be too highly correlated with each other, since this can impact the covariance matrix and make it difficult to distinguish the impact of each factor on the DV.
+  
+Not meeting these assumptions can lead to conducting a different test, such as the Kruskal Wallis test, which better accounts for the risk of Type 1 error in the presence of nonnormality.
+
+Explore the data's normality using ggplot histogram, skewness, kurtosis
+
+
+```{r}
+hrdat %>%
+  ggplot(aes(x = HeartRate)) +
+  geom_histogram(binwidth = 5) +
+  theme_bw() +
+  labs(caption = "Figure 1: Distribution of HeartRate") +
+  theme(
+    plot.caption =  element_text(hjust = 0, size = 20),
+    panel.grid.major =  element_blank(),
+    panel.grid.minor = element_blank()
+  ) +
+  xlab("HeartRate") +
+  ylab("Frequency")
+```
+
+
+Fancy boxplot/violin-plot to visualize distribution of HeartRates in each experimental condition
+```{r}
+hrdat %>%
+  ggplot(aes(x = Group, y = HeartRate)) +
+  geom_violin() +
+  geom_boxplot(alpha = 0) +
+  geom_jitter(width = .1) +
+  theme_light() +
+  labs(caption = "Figure 2: HeartRate by Group") +
+  ylab("Heart Rate") +
+  theme(
+    plot.caption =  element_text(hjust = 0, size = 20),
+    panel.grid.major =  element_blank(),
+    panel.grid.minor = element_blank()
+  )
+```
+
+Fancy boxplot/violin-plot to visualize distribution of HeartRates in each experimental condition & across gender
+```{r}
+hrdat %>%
+  ggplot(aes(x = Group, y = HeartRate)) +
+  geom_violin() +
+  geom_boxplot(alpha = 0) +
+  geom_jitter(width = .1) +
+  theme_light() +
+  labs(caption = "Figure 2: HeartRate by Group and Gender") +
+  ylab("Heart Rate") +
+  facet_grid(.~Gender) +
+  theme(
+    plot.caption =  element_text(hjust = 0, size = 20),
+    panel.grid.major =  element_blank(),
+    panel.grid.minor = element_blank()
+  )
+
+```
+
+# *Fitting ANOVAs using aov() and lm()*
+
+aov() operates the same as lm().
+- The first argument takes a formula (Remember: DV ~ IV1+IV2+IV1*IV2...)
+- The second argument defines the data
+- For additional documentation see ??aov() or help("aov")
+- Note that aov() defaults to type I sum of squares - this will be important later when we discuss designs with unbalanced groups
+
+
+**Creating full & restricted models using aov()**
+Restricted is an empty model (i.e., no factors)
+```{r}
+model_restricted<-aov(HeartRate ~ 1, data = hrdat)
+```
+The full model (in this case) has two factor predictors, plus the interaction between the predictors. There are two equal ways to write this model.
+```{r}
+model_full <- aov(HeartRate ~ Group + Gender + Group * Gender, data = hrdat)
+#or
+model_full <- aov(HeartRate ~ Group * Gender, data = hrdat) # Just use this one if you are going to run a 2x2 ANOVA
+```
+Whenever specifying an interaction term in a model, you must include the main effects and any lower-order interactions for correct interpretation. Both the aov() and lm() functions do this automatically for each specified interaction term included in the model.
+
+**Creating full & restricted models using lm()**
+Restricted is an empty model (i.e., no factors)
+```{r}
+model_restricted_lm <- lm(HeartRate ~ 1, data = hrdat)
+```
+The full model (in this case) has two factor predictors that interact, and assumed main effects of those predictors
+```{r}
+model_full_lm <- lm(HeartRate ~ Group * Gender, data = hrdat)
+```
+
+Both the aov() and lm() approaches can fit the same model, as long as all variables are correctly coded and classified in the dataset. You can choose to use either approach to fit ANOVA models.
+
+# *Model comparsion using anova()*
+- The anova() function can be used to examine differences between model fit from either aov() or lm() objects, among others. This is how we will compare model fit to determine which model to select and interpret.
+- Note: This is the model fit for the full model 
+
+```{r}
+anova(model_restricted, model_full) 
+```
+Model fit results show that adding an additional variable and creating a more complex model, does in fact, statistically significantly improve the model's fit and ability to predict HeartRates.
+
+Results
+```{r}
+print("FULL MODEL")
+summary(model_full)
+```
+
+Assumption 1 post-model fit: normality of error terms
+The Shapiro-Wilk test is a test of normality. The null hypothesis is that terms are normally distributed while the alternative hypothesis is that terms are non-normally distributed. When examining the Shapiro-Wilk test to our model residuals, we typically want to find a non-significant effect, which tells us that the errors are not non-normally distributed.
+```{r}
+hist(model_full$residuals)
+plot(model_full, which = c(1,2)) #selects only the first two plots from the plot function
+shapiro.test(resid(model_full))
+```
+
+Assumption 2 post-model fit: homoscedasticity of error terms
+
+We can examine the homoscedasticity of error terms using various tests, including the Levene's test and Breusch-Pagan, among others. These two are shown below. Results may differ across tests, and you should use these tests with caution, since it is unclear the extent to which statistical tests on model assumptions are actually reliable. This is often why visualization is used instead. If there are clear differences or expected differences in variances across groups, we will discuss additional methods that assume unequal variances in coming weeks.
+
+Levene's test is a robust method to examine variance equality across groups that is robust to outliers and normality assumptions, especially when centered at the median of the distributions. When applying it to examine residual variances, it is examined in relation to a null hypothesis that states the residual variances across groups are equal.
+```{r}
+leveneTest(model_full, center = median) # using center=median a test more robust test to nonnormality
+```
+
+The Breusch-Pagan Test is one possible test to examine heteroskedasticity in more complex linear regression model residuals (including both ANOVA and regression), assuming that the residual terms are normally distributed. It is examined in relation to a null hypothesis that states the residual variances across groups are equal.
+```{r}
+library(olsrr)
+ols_test_breusch_pagan(model_full)
+```
+
+For the full model, both factors as well as the interaction between factors have p-values less than .05.
+Additionally, we can see that the errors are relatively normally distributed. In combination with all other assumptions, this means that the full model is one that best fits the data, so we can now interpret the full model.
+- These tests are **omnibus tests**, meaning that we reject the null hypothesis that ALL groups within the test are equal. 
+
+
+# *Helper functions for lm() work with aov()*
+- Most of the lm() helper functions (i.e., coef(), pred(), resid()) work with aov too
+- This means we can use the anova() function to compare models
+- coef() can extract model coefficients
+
+
+Extract parameter estimates for each group.
+```{r}
+coef(model_full)    #gives the mean for the reference group, and the deviation from the mean for each other group. If you compare this to the boxplot/violin-plot from earlier, you can see these specific means and deviations
+```
+
+Sometimes, you want to know which specific groups differed from other specific groups. We have not yet covered this content in class, but here's a taste of one way we can examine these differences: post-hoc pairwise comparisons.
+
+Post-hoc Pairwise Comparisons (to be continued): Tukey Test as an example
+
+BECAUSE OUR SAMPLE SIZE IS VERY LARGE, WE SHOULD CALCULTE EFFECT SIZES WITH THIS SO WE CAN TELL HOW MEANINGFUL THIS IS. WE ALREADY SAW HOW WE SAW AN INTERCEPT BE SIGNIFICANT AND IT WAS MEANINGLESS! - I think. 
+
+```{r}
+TukeyHSD(model_full, c("Group:Gender"))
+```
+
+
+# *Manual ANOVA*
+It is not necessary to compute ANOVA manually, yet can be good practice when first learning this technique, or as you learn other techniques. If you are interested in computing ANOVA other (harder) ways, creating your own SS, MS, df, etc. values using code, this gibhub page is a great resource: https://mgimond.github.io/Stats-in-R/ANOVA.html

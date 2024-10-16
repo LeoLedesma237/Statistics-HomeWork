@@ -1,0 +1,400 @@
+---
+title: "Psyc 6302 HW 5"
+author: "Leandro Ledesma"
+date: "2024-09-23"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(comment = "")
+knitr::opts_chunk$set(warning = FALSE)
+
+```
+
+```{r load in packages, echo = FALSE}
+library(tidyverse)
+library(psych) # Describe
+library(ggplot2)
+library(car) # LevenesTest
+library(kableExtra)
+library(psych)
+library(lmtest) #bptest (Bresuh-Pagan)
+library(MASS) 
+library(DescTools)  #EtaSq (eta-squared)
+```
+
+
+```{r load in data, echo=FALSE}
+# load in the data
+data <- read.delim("https://raw.githubusercontent.com/jasp-stats/jasp-data-library/main/Erotic%20Pictures%20and%20Love/Erotic%20Pictures%20and%20Love.csv", sep = ",")
+```
+
+## Description:
+This data set, "Erotic Pictures and Love", provides men and women's feelings towards their partners after watching either erotic or artistic pictures. Use this data to examine whether men and women across conditions (nude vs abstract art) differ or not in their reported Love for Partner.
+Variables:
+
+- Gender - Participant's gender.
+
+- Age - Participant's age.
+
+-	RelLen - Number of years in a current relationship.
+
+-	Condition - Experimental condition (Nudes = nude pictures, Abstract Art = abstract art pictures)
+
+-	PartnerAttractiveness - A sum of 6 Likert scales about the partner's attractiveness (1 = not at all, 9 = very much).
+
+-	LoveForPartner - A sum of 13 Likert scales from a Love Scale.
+
+-	AveragePleasantness - A mean of 3 items about pleasantness of the pictures.
+
+## Section 1. Examine the data (4 pts).
+1.	What are the independent variables in this example?
+- Gender (Male vs Female) and Condition (Nudes vs Abstract Art)
+a.	How many levels (J) does each independent variable have? 
+- Both independent variables have two levels. Gender has the levels 'Male' and 'Female'; Condition has the levels 'Nudes' and 'Abstract Art'.
+2.	What is the dependent variable in this example? 
+- Love for partner
+3.	Examine and briefly report relevant descriptive statistics, including measures of central tendency, variability, normality, and/or counts for each independent and dependent variable. Include your code and results.
+- Starting with the categorical variables, there are 99 women and 122 males in the study (45% Female). There were 122 abstract art observations and 101 conditions with nude art (45% nude art). For the outcome variable, the mean of love for partner is 92.4 with a standard deviation of 16.9 (variance of 285.9). When plotting this variable, the distribution looks skewed to the left.
+
+
+```{r section1, out.width="50%"}
+# Categorical variables descriptives
+addmargins(table(data$Gender, data$Condition))
+
+# Descriptives of the outcome
+describe(data$LoveForPartner)
+
+# Plot the outcome
+hist(data$LoveForPartner)
+```
+
+
+## Section 2. Hypotheses (4 pts).
+
+1.	Write the null hypotheses as they relate to the population means.
+- Factor A $H_{0} : \mu_{1*} = \mu_{2*}$
+- Factor B $H_{0} : \mu_{*1} = \mu_{*2}$
+- AxB $H_{0} : \mu_{11} = \mu_{12} = \mu_{21} = \mu_{22}$
+
+2.	Write the alternative hypotheses as they relate to the population means.
+- Factor A $H_{0} : \mu_{1*} \neq \mu_{2*}$
+- Factor B $H_{0} : \mu_{*1} \neq \mu_{*2}$
+- AxB $H_{0} : \mu_{jakc} \neq \mu_{jbkd}$ for at least one pait (*j*,*k*)
+3.	Using typical language, write the null hypothesis.
+- There are no differences in the outcome variable based on gender, condition, or their interaction.
+4.	Using typical language, write the alternative hypothesis.
+- There are differences in the outcome variable based on gender, condition, or their interaction. 
+
+
+## Section 3. Fit a factorial ANOVA & Compare Models (3 pts)
+
+1. Fit both a restricted and full two-way ANOVA using lm() or aov(). Report your code and output.
+
+- Code present below
+
+2. Using model outputs, compare the fit between the restricted and full models. Report your code and output.
+
+- Code present below
+
+3. Based on your comparison, which model should you choose to interpret?
+
+- The comparison between the restricted and full model resulted in a p.value greater than .05. This indicates that the full model did not have a statistically significant difference residual sum of scores compared to the restricted model. Thus, it would be best to go with the simpler (restricted) model. 
+
+```{r section3}
+# Create the restricted and full One-Way ANOVA Model using aov()
+restricted.aov <- aov(LoveForPartner ~1, data)
+full.aov <- aov(LoveForPartner ~ Condition * Gender, data)
+
+# Create the restricted and full One-Way ANOVA model using lm()
+restricted.lm <- lm(LoveForPartner ~1, data) 
+full.lm <- lm(LoveForPartner ~ Condition * Gender, data)
+
+# Compare the fit for aov models
+anova(restricted.aov, full.aov) 
+```
+
+## Section 4. Assumption Check (5 pts).
+1.	List the 4 assumptions of factorial ANOVA, and the code/results and/or logic you used to examine each assumption, as appropriate. 
+
+- **Assumption 1**: Independence. We are assuming that the observations for each group are independent of each other. Within the context of this experimental design, this means that no person rated their love for their partner more than once. Usually this can be confirmed in the dataset by looking at the ID values, however, this dataset does not contain that.
+
+- **Assumption 2**: Normality. The errors of the factorial anova need to be normally distributed. We can visualize this with a Q-Q plot. It looks like the errors are not normally distributed. We can also use the Shapiro Wilk test to check the distribution of residuals. This test has a null hypothesis that the distribution being tested is normal and a p.value smaller than 0.05 means this null hypothesis gets rejected. The p.value for our residuals is smaller than .05, thus this assumption is violated. 
+
+- **Assumption 3** Homogeneity of Variance: The variance of the outcome for each of the groups created by the levels of Factor A and Factor B must look similar. We can investigate this by plotting the variance using violin plots. Visually the variance looks to be the same, with a potential outlier for Nude Males subgroup. Another test is Leven and Breush Page test, with the null hypothesis stating that there is homogeneity across the variances. Both Levene's Test and Breush-Pagan result in p.values greater than 0.05, thus this assumption is met.  
+
+- **Assumption 4** : No-Multicollinearity: We need to make sure that our predictors are not too highly correlated with each other. Since both of our predictors are categorical variables, we can use chi squares test of independence. The null hypothesis (p > .05) is that the categorical variables are independent of each other (not related to each other). The p.value from the chi-square test is not statistically significant, thus this assumption of no multicollinearity was met.  
+
+
+2.	Were all assumptions met. If not, describe.
+
+- The assumptions of homogeneity of variance and no-multicollinearity were met. The assumption of independence is very likely to be true but hard to be certain since there is no ID variable in the data. The assumptions for normality distribution of errors was violated.  
+
+
+```{r section4, out.width="50%"}
+# Checking assumption 1..
+# There is no ID variables
+
+# Checking assumption 2
+plot(full.aov, which = c(1,2))
+shapiro.test(resid(full.aov))
+
+# Assumption 3
+data %>%
+  mutate(`All Groups` = paste(Condition, Gender)) %>%
+  ggplot(aes(x = `All Groups`, y = LoveForPartner)) +
+  geom_violin() +
+  geom_boxplot(alpha = 0) +
+  geom_jitter(width = .1) +
+  theme_light() 
+
+leveneTest(full.aov, center = median) # using center=median a test more robust test to nonnormality
+bptest(full.aov)
+
+# Assumption 4
+chisq.test(data$Gender, data$Condition)
+```
+
+## Section 5. Interpretation & Write-up (7 pts)
+1.	Calculate the coefficient of determination (eta-squared or omega-squared).
+
+There are three eta-squares ($\eta^2$) to report (rounded to 3 decimal places). They are calculated by taking the sum of squares of the main effect or interaction and dividing it by the total sum of squares. 
+
+- Factor A: .001
+
+- Factor B: .013
+
+- Factor AxB: .005
+
+- Total $\eta^2$ = .019
+
+2.	Report the ANOVA results in table format.
+
+- The ANOVA table results are below
+
+```{r section5}
+# ANOVA results
+aov.results <- summary(full.aov)
+
+# Calculate the total sum of squares
+tss <- sum(aov.results[[1]][,"Sum Sq"])
+
+# Calculate eta-squares for all factors and interactions
+eta.squared <- round(aov.results[[1]][,"Sum Sq"][1:3]/tss,3)
+
+# Calculate the total eta square
+sum(eta.squared)
+
+# Confirms eta square
+round(EtaSq(full.aov, type = 2,anova = TRUE),3)
+
+# Print ANOVA results
+aov.results
+```
+
+3.	Using APA formatting, write a concise 1 paragraph report describing the models you tested, model fit, model fit comparisons, model assumptions, model results, effect sizes, and reference figures/tables relevant for interpreting model results. 
+
+- A two-way ANOVA was used to investigate if the conditions of art (nude, abstract), gender (males, female), and their interaction influenced the reported love for the participants' partner. The results indicates no significant main effect for condition, *F*(1,219)= 0.13, p > .05, $\eta^2$= .00; no significant main effect for gender, *F*(1,219)= 2.80, p > .05, $\eta^2$= .01; and no significant interaction between condition and gender, *F*(1,219)= 1.19, p > .05, $\eta^2$= .01. Thus even though the group means of love for partner are higher in females (*M* = 94.52, *SD* = 16.66) than in males (*M* = 90.78, *SD* = 16.99), they are not statistically  different than each other, which is evident by how large the standard deviations are (**Table 2**). The same is true for condition group mean differences (**Table 1**) and for cell mean group differences (**Table 3**). These results were corroborated with a model comparison of the full two factor model to the restricted ANOVA model. The full model did not statistically differ in the residual sum of scores compared to the restricted model (p > .05). Based on these omnibus results, there is no need to further explore the relationship of cells towards each other through post-hoc testing. 
+
+```{r srction5-part2, echo = F}
+# Calculating cell means and group means
+data %>%
+  group_by(Condition) %>%
+  summarise(mean.LFP = round(mean(LoveForPartner),2),
+            sd.LFP = round(sd(LoveForPartner),2)) %>%
+  arrange(desc(mean.LFP)) %>%
+  kbl(caption = "Table 1: Condition Group Means for Love For Partner") %>%
+  kable_paper("hover", full_width = F)
+
+data %>%
+  group_by(Gender) %>%
+  summarise(mean.LFP = round(mean(LoveForPartner),2),
+            sd.LFP = round(sd(LoveForPartner),2)) %>%
+  arrange(desc(mean.LFP)) %>%
+  kbl(caption = "Table 2: Gender Group Means for Love For Partner") %>%
+  kable_paper("hover", full_width = F)
+
+
+data %>%
+  group_by(Condition, Gender) %>%
+  summarise(mean.LFP = round(mean(LoveForPartner),2),
+            sd.LFP = round(sd(LoveForPartner),2)) %>%
+  arrange(desc(mean.LFP)) %>%
+  kbl(caption = "Table 3: Cell Means for Love For Partner") %>%
+  kable_paper("hover", full_width = F)
+
+```
+
+## Section 6. Theory & Concept (7 pts)
+
+1.	A 2x2 factorial design was used to examine the impact of diet type (plant-based vs high-protein) and primary exercise type (cardio vs weight training) on 1-month muscle mass gains (measured in kg). Use the table below to calculate a factorial ANOVA completely by hand. You must show your work and answers for full credit. Use the mean of means approach, where applicable.
+
+- Apologies, I hope this counts as 'by hand' since I am typing everything out like I would writing on paper.
+
+```{r image, out.width="50%"}
+knitr::include_graphics("/Users/leandroledesma/Documents/Grad Classes/2024_Fall/PSYC 6302 (Exp Desg)/HWs/two factorial image.png")
+
+```
+
+### Calculating means
+
+Group means: 
+
+- Plant(k1) = (.2 + .3 -.5 + .3 - .3 + .3 + .5 + .7 + .4 + .6)/10 = .25
+
+- Protein (k2) = (.5 + 1.3 -.1 + 1.1 + .7 + .8 + 1.2 + 1.5 + 1.1 + 1)/10 = .91
+
+- Cardio (j1)= (.2 + .3 -.5 + .3 -.3 + .5 + 1.3 -.1 + 1.1 + 0.7)/10 = .35
+
+- Training (j2) = (.3 + .5 + .7 + .4 + .6 + .8 + 1.2 + 1.5 + 1.1 + 1.0)/10 = .81
+
+Cell means: 
+
+- Cardio-Plant: (.2 + .3 -.5 + .3 -.3)/5 = 0
+
+- Cardio-Protein: (.5 + 1.3 -.1 + 1.1 + .7)/5 = .7
+
+- Training-Plant: (.3 + .5 + .7 + .4 + .6)/5 = .5
+
+- Training-Protein: (.8 + 1.2 + 1.5 + 1.1 + 1.0)/5. = 1.12
+
+ Grand mean
+
+- (0 + .7 + .5 + 1.12) = .58
+
+### Calculating sum of squares (Between Cells)
+
+- Here we are comparing the difference between the cell means and the grand mean.
+
+$$SS_{Between.Cells} =  \sum_{k=1}^{k}\sum_{j=1}^{j}\sum_{i=1}^{n_{cell}}(\overline{Y}_{jk}-\overline{Y})^2$$
+- 5(0 - .58)^2 + 5(.7 - .58)^2 + 5(.5 - .58)^2 + 5(1.12 - .58)^2
+
+- 5(-.58)^2 + 5(.12)^2 + 5(-.08)^2 + 5(.54)^2 =
+
+- 5(.34) + 5(.01) + 5(.01) + 5(.29) =
+
+- 1.7 + .05 + .05 + 1.45 =
+
+- 3.25
+
+### Calculating sum of squares (Within Cells)
+
+- Here we are comparing the differnece between the observed values and the cell means (predicted values).
+
+$$SS_{Within.Cells} =  \sum_{k=1}^{k}\sum_{j=1}^{j}\sum_{i=1}^{n_{cell}}(y_{ijk} - \overline{Y}_{jk})^2$$
+ - (.2 - 0)^2 + (.3 - 0)^2 + (-.5 - 0)^2 + (.3 - 0)^2 + (-.3 - 0)^2 + (.3 -.5)^2 + (.5 - .5)^2 + (.7 - .5)^2 + (.4 - .5)^2 + (.6 - .5)^2 + (.5 - .7)^2 + (1.3 - .7)^2 + (-.1 -.7)^2 + (1.1 - .7)^2 + (.7 - .7)^2 + (.8 - 1.12)^2 + (1.2 - 1.12)^2 + (1.5 - 1.12)^2 + (1.1 - 1.12)^2 + (1 - 1.12)^2 =
+
+- .2^2 + .3^2 -.5^2 + .3^2 - .3^2 -.2^2 + 0^2 + .2^2 -.1^2 + .1^2 + .2^2 + .6^2 -.8^2 + .4^2 + 0^2 -.32^2 + .08^2 + .38^2 -.02^2 - .12^2 =
+
+- .04 + .09 + .25 + .09 + .09 + .16 + 0 + .04 + .01 + .01 + .04 + .36 + .64 +  .16 + 0 + .10 + .01 + .14 + 0 + .01 =
+
+- 2.12
+
+## Calculate sum of squares (Total)
+
+$$SS_{Total} =  \sum_{k=1}^{k}\sum_{j=1}^{j}\sum_{i=1}^{n_{cell}}(y_{ijk} - \overline{Y})^2$$
+
+- (.2 - .58)^2 + (.3 - .58)^2 + (-.5 - .58)^2 + (.3 - .58)^2 + (-.3 - .58)^2 + 
+
+(.3 - .58)^2 + (.5 - .58)^2 + (.7 - .58)^2 + (.4 - .58)^2 + (.6 - .58)^2 + 
+
+(.5 - .58)^2 + (1.3 - .58)^2 + (-.1 - .58)^2 + (1.1 - .58)^2 + (.7 - .58)^2 + 
+
+(.8 - .58)^2 + (1.2 - .58)^2 + (1.5 - .58)^2 + (1.1 - .58)^2 + (1 - .58)^2 =
+
+- 0.38^2 + 0.28^2 + 1.08^2 + 0.28^2 + 0.88^2 +
+ 
+ 0.63^2 + 0.03^2 + 0.08^2 + 0.18^2 + 0.02^2 +
+ 
+  0.16^2 + 0.72^2 + 0.68^2 + 0.52^2 + 0.12^2 +
+  
+  0.22^2 + 0.62^2 + 0.92^2 + 0.52^2 + 0.42^2 =
+
+- 5.372
+
+
+## Calculating SSA (treatment effect of Factor A)
+
+- This is for the main effect of A
+
+$$SS_{A} =  \sum_{k=1}^{k}\sum_{j=1}^{j}\sum_{i=1}^{n_{cell}}(\overline{Y}_{j*} - \overline{Y})^2$$
+- 10(.35 - .54)^2 + 10(.81 - .54)^2 =
+
+- 10(-0.19)^2 + 10(0.27)^2 = 
+
+- 0.36 + 0.73 = 1.09
+
+## Calculating SSB (treatment effect of Factor B)
+
+- This is for the main effect of B
+
+$$SS_{B} =  \sum_{k=1}^{k}\sum_{j=1}^{j}\sum_{i=1}^{n_{cell}}(\overline{Y}_{*k} - \overline{Y})^2$$
+
+- 10(.25 - .54)^2 + 10(.91 - .54)^2 =
+
+- 10(-0.29)^2 + 10(0.37)^2 =
+
+- 0.84 + 1.37 = 2.21
+
+## Calculating SS(AxB) (treatment effect of Factor B)
+
+$SS_{Between} = SS_{A} + SS_{B} +SS_{AxB}$ . Thus $SS_{AxB} = SS_{Between} - SS_{A} - SS_{B}$
+
+- 3.25 - 1.09 - 2.21 = 0
+
+
+## Calculating Mean Squares for Main Effects and Interaction
+
+$MS_{A} = \frac{SS_{A}}{df_{A}}$ = 1.09/1 = 1.09
+
+$MS_{B} = \frac{SS_{A}}{df_{B}}$ = 2.21/1 = 2.21
+
+$MS_{AxB} = \frac{SS_{A}}{(j-1)*(k-1)}$ = 0/1 = 0
+
+## Calculating Mean Squares for Within Cells
+
+$MS_{Within.Cells} = \frac{SS_{WithinCells}}{df_{WithinCells}}$ =  2.12/16 = .13
+
+## Calculating F statistics
+
+- Main effect for Factor A: $\frac{MS_{A}}{MS_{WithinCells}}$ = 1.09/.13 = 8.39
+
+- Main effect for Factor B: $\frac{MS_{B}}{MS_{WithinCells}}$ = 2.21/.13 = 17
+
+- Main effect for AxB: $\frac{MS_{AxB}}{MS_{WithinCells}}$ = 0/.13 = 0
+
+## Conclusions from the F statistics
+
+- Since the F statistic for the Main Effect of A and for the Main Effect of B were much larger than 1, then it is almost guaranteed these factors were significant. The interaction F statistic is zero (not p.value), thus there is no interaction effect. 
+
+- Since main effects are present, we can now use post-hoc tests to see which pair-wise comparison of factor levels are statistically different from each other. 
+
+```{r anova by hand, echo = F, include = F}
+# We will run the ANOVA on this dataset
+data2 <- data.frame(FactorA = rep(c(rep("cardio",5), rep("training",5)),2),
+                    FactorB = c(rep("plant",10), rep("protein",10)),
+                    Score = c(.2, .3, -.5, .3, -.3,
+                              .3, .5, .7, .4, .6,
+                              .5, 1.3, -.1, 1.1, .7,
+                              .8, 1.2, 1.5, 1.1, 1))
+
+# Calculate group means
+data2 %>%
+  group_by(FactorA) %>%
+  summarize(mean(Score))
+
+data2 %>%
+  group_by(FactorB) %>%
+  summarize(mean(Score))
+
+# Calculate cell means
+data2 %>%
+  group_by(FactorA, FactorB) %>%
+  summarize(mean(Score))
+
+
+summary(aov(Score~FactorA*FactorB, data= data2))
+
+```

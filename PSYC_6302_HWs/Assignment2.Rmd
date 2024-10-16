@@ -1,0 +1,177 @@
+---
+title: 'HW 2: PSY 6302'
+author: "Leandro Ledesma"
+date: "2024-09-03"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(comment = "")
+
+```
+
+
+## Load in packages
+
+```{r load in packages}
+library(tidyverse)
+library(psych)
+library(ggplot2)
+```
+
+## Load in the dataset
+
+```{r load in dataset}
+data <- read.csv("https://raw.githubusercontent.com/jasp-stats/jasp-data-library/main/Beer%20Goggles/Beer%20Goggles.csv")
+
+# Create another version of the same dataset (for section 2)
+data2 <- data
+```
+
+## Variables in the dataset
+
+
+•	FaceType - Attractiveness of the rated faces ('0' = unattractive, '1' = attractive).
+
+•	Alcohol - Amount of alcohol consumed ('0' = Placebo group with 500 ml of non-alcoholic beer, '1' = Low-dose group with 500 ml of average strength beer (4% ABV), '2' = High-dose group with 500 ml of strong beer (7% ABV).
+
+•	Attractiveness - Median of the 50 attractiveness ratings on a scale from 0 ("pass me a paper bag") to 10 ("pass me their phone number").
+
+```{r variables in the dataset}
+# unnessary data cleaning
+data$FaceType <- factor(data$FaceType, levels = c(0,1), labels = c("Unattractive Face", "Attractive Face"))
+
+data$Alcohol <- factor(data$Alcohol, levels = c(0,1,2),
+                       labels = c("Placebo", "Weak Beer", "Strong Beer"))
+
+
+# Use table for the categorical variables
+table(data$FaceType)
+table(data$Alcohol)
+table(data$FaceType, data$Alcohol)
+
+# Use describe by for the numeric variable
+describe(data$Attractiveness)
+hist(data$Attractiveness)
+```
+
+
+
+## Section 1
+
+Examine the basic structure and descriptive statistics of all variables in your dataset, appropriately for each variable's data type (categorical vs continuous). Report results in 2-3 sentences: e.g., "Variable A was categorical with N = N1 people in group 1 and N = N2 people in group 2. Variable B was continuous and relatively normally distributed with a mean of M = 100 and standard deviation of SD = 10.”
+
+- Two variables functioned as categorical variables. One contained information about attractive (n=24) and unattractive (n=24) individuals and the other described the different dosages of alcohol consumed by raters (placebo n = 16; average beer n = 16; strong beer n = 16). The remaining variable was numeric and comprised of 48 observations of rated attractiveness. It had a mean of 5.67 attractiveness and 1.59 standard deviation (slightly skewed to the left).
+
+## Section 2:
+
+Examine the correlation between all three variables, using Spearman’s correlation. Use the Help tab as needed. Report your code below.
+
+```{r section2}
+# Run a spearman correlation on all bivariate combinations
+round(cor(data2, method = "spearman"),3)
+
+```
+
+
+## Section 3: 
+
+Visualize the relationship between face type, alcohol, and attractiveness, using different colors to reflect the different factor values of alcohol. Report your code below.
+
+```{r section3}
+# Plot the graph
+plot1 <- data %>%
+  ggplot(aes(x = FaceType, y = Attractiveness, color = Alcohol, shape = Alcohol)) +
+  geom_jitter(width = .15,
+              size = 2) +
+  theme_classic()
+
+plot1
+```
+
+## Section 4 
+
+Visualize the relationship between alcohol and attractiveness, faceted by face type. Report your code below.
+
+```{r section4}
+plot2 <- data %>%
+  ggplot(aes(x= Alcohol, y = Attractiveness)) +
+  geom_boxplot() +
+  facet_wrap(~FaceType)
+
+plot2
+```
+
+## Section 5
+
+Using the graph in Section 4, add appropriate labels for Face Type, using R code. Report your code below.
+
+- It already contained labels from the code I used above that will be paste below. Added extra code for labels of the x and y axis and made the graph cleaner. 
+
+```{r section5}
+#data$FaceType <- factor(data$FaceType, levels = c(0,1), labels = c("Unattractive Face", "Attractive Face"))
+
+# Create the plot
+plot2.1 <- plot2 +
+  labs(title = "Relationship between Perceived Attraction and Actual Attractiveness\nby Strength of Alcohol Consumption", 
+       x = "Strength of Alcohol Consumption", 
+       y = "Perceived Attractiveness") +
+  theme_linedraw()
+
+plot2.1
+```
+
+
+## Section 6
+
+Save your figure using code. Google how to do this and see if it works. Report your code below. 
+
+- Used the ggsave() function to do this. 
+
+```{r section 6}
+# Set save directory
+setwd("~/Desktop")
+
+# Save the plots
+ggsave("Plot2.png", plot = plot2.1, width = 4, height = 3) 
+
+```
+
+## Section 7
+
+Write 2-3 sentences explaining the concepts of internal and external validity.
+
+- Internal validity refers to the quality of the experimental design to establish the relationship of causality between two or more variables by ruling out the influence of unwanted confounding variables. External validity relates to how much can the findings of a study be generalized to others which can include, people, culture, contexts, ages, etc. Both internal and external validity are important yet it can be difficult to achievement them in a study since prioritizing one tends to weaken the other. 
+
+
+## Section 8
+
+Relate the concepts of internal and external validity to causal relationships and experimental design in 2-3 sentences.
+
+- We can establish good internal validity by how we design the experiment to answer a research question. Good experimental design can reduce the effects of confounding variables by controlling for them in the actual experiment (ex: controlling for age by recruiting participants of the same age) or using random assignment. Additionally, we can increase external validity (how well the results generalize) in the study by being aware of the participants being recruited, modifying our experiment to make it closer to a realistic setting, or making note of the limitations of the research design. 
+
+
+## Section 9
+
+Choose a topic in an area of your choice. Write a short (no more than 7 sentences) problem statement using logical syllogism (described below).
+
+- **1. Major Premise:** Stress is something that is experienced in everyday life and can lead to negative impacts, both mentally and physically. Additionally, members in the military tend to experience stress regularly either during training or when on duty. 
+
+- **2. Minor Premise:** However, the specific types of stress and what their effects are, especially in cognition are not yet well understood. 
+
+- **3. Conclusion/Major Premise:** Therefore, our understand on how stress, especially in a military setting, influences cognitive performance is lacking.
+
+- **4. Minor Premise:** Having greater knowledge of how stressors (physical or mental) influence cognition could be beneficial in predicting performance on tasks during different aspects of military training or service. 
+
+- **5. Conclusion:** Therefore, the purpose of this study is to investigate the effects of stress, induced by acute exercise and sleep deprivation, on cognition. Specifically, this study will recruit participnts with ROTC and/or military backgrounds to better represent the military population. 
+
+
+
+## Section 10
+
+Reflect on your problem statement. What threats to internal validity, external validity, statistical conclusion validity and/or construct validity do you anticipate and how will you resolve or interpret these threats? Will they impact your ability to discuss your research in the context of causation?
+
+- The goal of the proposed study is to investigate the effects of stress on cognition. The first problem that may occur is attrition, since the introduction of stress could lead to participants dropping out of the study.This would cause problems with internal validity since more resilient subjects would remain in the final sample for analysis. Another potential issue to internal validity is how stress is operationalized in the study. For example, there is a chance that choosing an exercise routine that is demanding for average college students might be easier for a sample of ROTC members. Thus, failing to introduce an exercise condition that can cause stress in this sample will lead to incorrect results about the nature of stress on cognition. Issues to external validity can also occur. While I am trying to mitigate it by being mindful of the inclusion criteria for recruitment (must have ROTC and/or military background), other issues such as my interaction with participants or my experimenter bias could influence the results. For example, if I am hypothesizing that stress leads to poorer cognitive performance and I am collecting data from someone who is sleep deprived, I may be incline to score them harder on a task. This would also be difficult to control for by being blinded to conditions since viewing a participant covered in sweat or watching them struggle to stay awake would give away the condition. For construct validity, this would fall back more to the outcome variable of cognition. Using standardized and well respected tests like the Wechsler Adult Intelligence Scale (WAIS) for an IQ measure and the Wechsler Memory Scale (WMS) as a working memory measure should suffice. However, since participants will have to do these tasks multiple times during the study, it does increase the risk of testing effects, which reduces internal validity. This could be controlled for by randomizing which condition is received first (baseline, exercise, sleep deprivation). Lastly, I need to be mindful of the number of participants that should be recruited for me to have enough power to notice an effect (or lack of). Data quality and the correct usage of a repeated measures statistical test are also important for statistical validity. Overall with most of these issues addressed the conclusions made from this study should be decently accurate. 
+

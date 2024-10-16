@@ -1,0 +1,254 @@
+---
+title: "Lab 3 One-way ANOVA"
+author: "your name"
+output: 
+  word_document:
+    toc: true
+---
+
+Learning Objectives
+
+- Learning the basics of aov()
+- Model comparisons using anova()
+- Review changing factor coding
+- Generate effect sizes
+
+Packages Used
+- tidyverse: Data manipulation and visualization
+- skimr: Tidy-style summary statistics
+- car: Helper function for generating factor contrasts 
+- sjstats: Helper functions for generating effect sizes
+
+#### Load packages
+```{r}
+library(tidyr)      # tidy messy data
+library(dplyr)      # data manipulation
+library(magrittr)   # using the pipe operator
+library(ggplot2)    # pretty plots and graphics
+library(readxl)     # read .xls or .xlsx files
+library(data.table) # faster aggregation of large data
+library(corrplot)   # visualize correlations among variables
+library(stats)      # broad package; some useful plot/distribution functions
+```
+
+```{r}
+download.file("https://raw.githubusercontent.com/jasp-stats/jasp-data-library/main/Facebook%20Friends/Facebook%20Friends.csv", destfile = "Facebook_Friends.csv")
+
+fbdat <- read.csv("Facebook_Friends.csv", stringsAsFactors = FALSE)
+```
+
+# *Explore the dataset*
+
+Initial inspection reveals that the dataset contains one factor (Manipulated Number of Friends), an id variable (Participant) and a continuous test score (Score of Preference Rating). For more context about these variables, visit the online JASP repository.
+```{r}
+fbdat                # view the data
+```
+
+```{r}
+glimpse(fbdat)       # glimpse the data
+```
+
+```{r}
+summary(fbdat)       # examine data summaries
+```
+
+```{r}
+lapply(fbdat, class) # check variable classes; ensure that the IV is a factor, DV is continuous for one-way ANOVA
+```
+The IV is NOT coded as a factor, but instead as an integer. Ignoring this will impact our results, so let's change the variable type, then check the data.
+```{r}
+fbdat$Friends <- as.factor(fbdat$Friends)                  # Approach 1: uses base functions
+fbdat <- fbdat %>%  mutate(Friends = factor(x = Friends))  # Approach 2: uses tidy functions
+```
+Now, let's check the data again.
+```{r}
+summary(fbdat)
+lapply(fbdat, class) 
+```
+All looks good. 
+
+Look at simple plots to visualize the outcome variable
+```{r}
+hist(fbdat$Score)
+qqnorm(fbdat$Score)
+```
+
+# *Assumption checks*
+There are 3 general assumptions in one-way ANOVA
+  1. Normality Assumption: DV responses for each factor level have a normal *population* distribution.
+  2. Independence Assumption: Samples are drawn independent of each other across and within factor levels.
+  3. Error Assumptions: 
+       a. The expected population value of the errors are 0.
+       b. The variance of observations is equal to the population variance of the errors.
+       c. Errors are normally distributed with an expected mean of 0 and a variance of σ^2
+       d. Homogeneity of variances for all j groups.
+
+Explore the data's normality using ggplot histogram, skewness, kurtosis
+```{r}
+ggplot(data = fbdat, aes(x = Score)) +
+  geom_histogram(binwidth = 1) +
+  theme_bw() +
+  labs(caption = "Figure 1: Distribution of Score") +
+  theme(
+    plot.caption =  element_text(hjust = 0, size = 20),
+    panel.grid.major =  element_blank(),
+    panel.grid.minor = element_blank()
+  ) +
+  xlab("Score") +
+  ylab("Frequency")
+```
+
+Fancy boxplot/violin-plot to visualize distribution of scores in each experimental condition
+
+We can look at distribution withing  (experimental conditions), using violin plots. Here we are adding a boxplot too it and also jittering the data points to make it look nicer. 
+
+```{r}
+ggplot(data = fbdat, aes(x = Friends, y = Score)) +
+  geom_violin() +
+  geom_boxplot(alpha = 0) +
+  geom_jitter(width = .1) +
+  theme_light() +
+  labs(caption = "Figure 2: Score by Experimental Friend Condition") +
+  theme(
+    plot.caption =  element_text(hjust = 0, size = 20),
+    panel.grid.major =  element_blank(),
+    panel.grid.minor = element_blank()
+  )
+```
+- From above we can see that 102 distribution may be bimodal, distribution of 702 is quite spread out, more variability (maybe not alot) and that 902 seems to be skewed. 
+
+
+# *Fitting ANOVAs using aov() and lm()*
+
+aov() operates just like lm() 
+- The first argument takes a formula (Remember: DV ~ IV1+IV2...)
+- The second argument defines the data
+- For additional documentation see ??aov() or help("aov")
+- Note that aov() defaults to type I sum of squares - this will be important later when we discuss designs with unbalanced groups
+
+
+**Creating full & restricted models using aov()**
+Restricted is an empty model (i.e., no factors)
+```{r}
+model_restricted<-aov(Score~1, data = fbdat)
+```
+
+The full model (in this case) has one predictor
+```{r}
+model_full<-aov(Score~Friends, data = fbdat)
+```
+
+
+**Creating full & restricted models using lm()**
+Restricted is an empty model (i.e., no factors)
+```{r}
+model_restricted_lm <- lm(Score~1, data = fbdat)
+```
+
+The full model (in this case) has one predictor
+```{r}
+model_full_lm <- lm(Score~Friends, data = fbdat)
+```
+
+Both the aov() and lm() approaches will fit the same model, as long as all variables are correctly coded and classified in the dataset. You can choose to use either approach to fit ANOVA models.
+
+# *Model comparsion using anova()*
+- The anova() function does not compute ANOVAs. It can, however, be used to examine differences between model fit from either aov() or lm() objects, among others. This is how we will compare model fit to determine which model to select and interpret.
+- Note: This model comparison will provides the *exact same F result* as the omnibus test reported in the full model because the restricted model is empty.
+```{r}
+anova(model_restricted, model_full) 
+```
+Model fit results show that adding an additional variable and creating a more complex model, does in fact, statistically significantly improve the model's fit and ability to predict scores.
+
+- Here we see that the complex model (full model) explained more of the variance in the outcome (reduced the residual variance), and it did so in a way that is statistically significant than the restricted model (the model without predictors, aka uses the grand mean). So because of this, we should use the full model instead of the restricted model because it is better. 
+
+Results
+```{r}
+print("FULL MODEL")
+summary(model_full)
+```
+
+Let's check our last assumption: normality of error terms
+The Shapiro-Wilk test is a test of normality. The null hypothesis is that terms are normally distributed while the alternative hypothesis is that terms are non-normally distributed. When examining the Shapiro-Wilk test to our model residuals, we typically want to find a non-significant effect, which tells us that the errors are not non-normally distributed.
+
+- Plotting the name of the model for this to work. Now we get a number of different plots. We use these plots to look at the assumption of the errors, like to see if they are normally distributed. 
+
+- Plot 1: Show us our fitted and residual errors- in this plot we want a flat line! We also want a little less variability. 
+- Plot 2: Q-Q Residuals, comparing our observed residuals to our expected residuals, we want this plot to be diagonal
+- Plot 3: We will skip, not important
+- Plot 4: Skip this plot too
+
+- The shapiro test is just looking at the normality of the errors, the resid() function extracts the errors from the model. Because the p value is greater than .05, we fail to reject the null hypothesis, which means our errors are normally distributed.
+
+```{r}
+plot(model_full)
+shapiro.test(resid(model_full))
+```
+
+
+For the full model, the categorical variable *Friends* is significant. 
+Additionally, we can see that the errors are relatively normally distributed. In combination with all other assumptions, this means that the full model is one that best fits the data, so we can now interpret the full model.
+- This is a **omnibus test**, meaning that we reject the null hypothesis that ALL groups are equal. 
+- This says nothing if Group 1 and Group 2, or Group 2 and Group 3,... or Group 4 or Group 5 are equal. 
+
+
+# *Helper functions for lm() work with aov()*
+- Most of the lm() helper functions (i.e., coef(), pred(), resid()) work with aov too
+- This means we can use the anova() function to compare models
+- coef() can extract model coefficients
+
+
+Extract parameter estimates for each group.
+```{r}
+coef(model_full)    #gives the mean for the reference group, and the deviation from the mean for each other group. If you compare this to the boxplot/violin-plot from earlier, you can see these specific means and deviations
+```
+
+Sometimes, you want to know which specific groups differed from other specific groups. We have not yet covered this content in class, but here's a taste of one way we can examine these differences: post-hoc pairwise comparisons.
+
+Post-hoc Pairwise Comparisons (to be continued): Tukey Test as an example
+```{r}
+TukeyHSD(model_full, "Friends")
+```
+- Here see statistically significant differences between 102 and 302, and between 302 and 902.
+
+
+# *Manual ANOVA*
+It is not necessary to compute ANOVA manually, yet can be good practice when first learning this technique, or as you learn other techniques. If you are interested in computing ANOVA other (harder) ways, creating your own SS, MS, df, etc. values using code, see the code below. Alternatively, this gibhub page is a great resource: https://mgimond.github.io/Stats-in-R/ANOVA.html
+
+Calculate the restricted model
+```{r}
+fbdat %>%
+  mutate(mean = mean(Weight), # Calculating y_bar..
+         rsq = (Weight-mean)^2)%>% # Calculating Squared Residuals
+  summarise(RSS = sum(rsq), # Summing Squared Residuals
+            df = n()-1, # Calculating Residual Degrees of Freedom
+            MSS = RSS/df) # Calculating Mean Sum of Squared Residuals
+```
+
+Calculate the full model
+```{r}
+fbdat %>%
+  group_by(Experiment)%>% # Grouping the next manipulations by the factor
+  mutate(grp_mean = mean(Weight))%>% # Calculating group means
+  ungroup()%>% # Drop grouping structure
+  mutate(rsq = (Weight-grp_mean)^2,  # Calculating Squared Residuals for Model SS
+         tsq = (Weight-mean(Weight))^2)%>% # Calculating Squared Residuals for Total SS
+  summarise(TSS = sum(tsq), #  Calculating Total Sum of Squares
+            RSS = sum(rsq), # Calculating Residual Sum of Squares
+            SSM = TSS-RSS, # Calculating Model Sum of Squares
+            df_n = length(levels(Experiment))-1, # Calculating Numerator Degrees of Freedom
+            df_d = n()-length(levels(Experiment)), # Calculating Denominator Degrees of Freedom
+            MS_E = RSS/df_d, # Calculating Mean Squared Error
+            MS_M = (SSM/df_n), # Calculating Mean Squared Model
+            F_Test = MS_M/MS_E, # Calculating F-Statistic
+            p_val = 1-pf(q = F_Test, df1 = df_n, df2 = df_d))%>% # Calculating Probability of F-Test
+  mutate_all(funs(round(., 2))) # Rounding all data to two decimal places
+```
+
+
+# *Comparing models manually*
+
+F = ((SSE_R-SSE_F)/(DF_R-DF_F))/SSE_F/DF_F
+```{r}
+((74136 - 63006)/(71-69))/(63006/69) 
+```
