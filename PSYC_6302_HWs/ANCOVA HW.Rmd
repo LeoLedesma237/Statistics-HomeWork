@@ -1,7 +1,120 @@
 ---
-title: "ANCOVA HW"
+title: "Assignment 6: ANCOVA HW"
 author: "Leandro Ledesma"
 date: "2024-10-16"
 output: html_document
 ---
 
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(comment = "")
+knitr::opts_chunk$set(warning = FALSE)
+
+```
+
+```{r load in packages, echo = FALSE}
+library(tidyverse)
+library(psych) # Describe
+library(ggplot2)
+library(car) # LevenesTest
+library(kableExtra)
+library(psych)
+library(lmtest) #bptest (Bresuh-Pagan)
+library(MASS) 
+library(DescTools)  #EtaSq (eta-squared)
+```
+
+### Load in the data
+
+Description: This fictional data set, "Viagra", provides men's libido (and that of their partners) after having been administered different doses of viagra.
+Variables: 
+
+-	dose - Viagra dosage administered (Placebo, Low Dose, High Dose).
+
+- libido - Participant's libido (measured over the course of one week).
+
+- partnerLibido - Libido of participant's partner (measured over the course of one week).
+
+```{r load in the data, echo = FALSE}
+# load in the data
+data <- read.delim("https://raw.githubusercontent.com/jasp-stats/jasp-data-library/main/Viagra/Viagra.csv", sep = ",")
+```
+
+### Examine the data
+
+1.	What are the factor(s) in this example and How many levels (J) does each factor have? 
+
+- There is one factor that represents the dosage of Viagra taken. It includes three levels (Placebo, Low Dose, High Dose). 
+
+2.	What is the dependent variable in this example?  
+
+- The outcome variable is the participant's libido.
+
+3.	What is the covariate in this example?
+
+- The covariate is the libido of the partner's libido
+
+4.	Examine and briefly report relevant descriptive statistics, including measures of central tendency, variability, normality, and/or counts for each independent and dependent variable. Include your code and results.
+
+- There are three levels to Viagra dosage with 9 subjects getting a placebo pill (30%), 8 getting a low dosage (27%), and 13 getting a high dosage (43%). The libido variable (outcome) is numeric and has a mean of 4.3 (median = 4) with a standard deviation of 1.96 (var = 3.83). The distribution of these scores is skewed to the right, indicating that most people tended to have libidos below the mean of the outcome. Partner's Libido also has a right skewed distribution, which also shows that most partner's libido was also lower than the average (mean = 2.73, sd = 1.86). 
+
+
+5.	Check and report the correlations among predictors. Is multicollinearity an issue?
+
+- A pearson correlation showed that libido and partner's libido are not strongly correlated with each other (r= .25, p= ns)
+
+```{r examine the data, out.width = "49%"}
+# Obtain the frequency of each level of the factor
+table(data$dose)
+
+# Get some descriptives of the numeric variables
+describe(data$libido)
+hist(data$libido)
+
+
+describe(data$partnerLibido)
+hist(data$partnerLibido)
+
+# Correlate Libido and partner libido
+cor.test(data$libido, data$partnerLibido)
+
+```
+
+### Hypotheses
+
+6.	Write the null hypotheses as they relate to the population means.
+
+- $H_{0} : \mu_{1} = \mu_{2} = \mu_{3}$ (At the adjusted means)
+
+7.	Write the alternative hypotheses as they relate to the population means.
+ 
+- $H_{A}:\mu_{j}\neq\mu_{k}$ (At the adjusted means)
+
+8.	Using typical language, write the null hypothesis.
+
+- Viagra dosage has no effect on a participant's libido at any level of the covariate (partner's libido)
+
+9.	Using typical language, write the alternative hypothesis.
+
+- Viagra dosage does have an effect on a participant's libido at any level of the covariate (parner's libido)
+
+
+### Fit ANCOVA & Compare Models (10 pts)
+
+10.	Fit the following models using Type I SS. 
+a.	An empty model
+b.	A model that includes only the covariate effects on the outcome.
+c.	A model that includes covariate and main effects on the outcome.
+d.	A model that includes covariate, main, and interaction effects.
+11.	 Report your code and output.
+12.	Using model outputs, compare the fit among models. Report your code and output.
+13.	Based on your comparison, which model should you choose to interpret? 
+14.	Report the selected ANCOVA Table of Results, including all relevant SS, df, MS, F, and p values. You can use R or create a table by hand. Report in APA style.
+
+```{r Fit the ANCOVA and compare the models}
+
+
+
+```
