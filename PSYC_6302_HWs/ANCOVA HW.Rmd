@@ -114,7 +114,28 @@ d.	A model that includes covariate, main, and interaction effects.
 14.	Report the selected ANCOVA Table of Results, including all relevant SS, df, MS, F, and p values. You can use R or create a table by hand. Report in APA style.
 
 ```{r Fit the ANCOVA and compare the models}
+# Create an empty model 
+empty.model <- lm(libido ~ 1,data)
+summary(empty.model)
+
+# Create a model that includes only the covariate
+covariateOnly.model <- lm(libido ~ partnerLibido, data)
+summary(covariateOnly.model)
+
+# Create a model that includes the covariate and main effects
+covariateMain.model <- lm(libido ~ partnerLibido + libido, data)
+summary(covariateMain.model)
 
 
+# Create a model with the covariate, main effects, and interaction
+full.model <- lm(libido ~ partnerLibido * libido, data)
+summary(full.model)
 
+# Compare the fit for these models (Type 1 SS)
+anova(empty.model, covariateOnly.model, covariateMain.model, full.model) 
 ```
+
+
+### Assumption Check (10 pts). 
+15.	List all assumptions of ANCOVA.
+16.	Check all assumptions of ANCOVA and report your logic/results.
