@@ -24,6 +24,8 @@ library(psych)
 library(lmtest) #bptest (Bresuh-Pagan)
 library(MASS) 
 library(DescTools)  #EtaSq (eta-squared)
+library(broom)
+library(kableExtra)
 ```
 
 ### Load in the data
@@ -63,22 +65,28 @@ data <- read.delim("https://raw.githubusercontent.com/jasp-stats/jasp-data-libra
 
 5.	Check and report the correlations among predictors. Is multicollinearity an issue?
 
-- A pearson correlation showed that libido and partner's libido are not strongly correlated with each other (r= .25, p= ns)
+- Since the levels of the factor are ordinal (Placebo, Low Dose, High Dose), we can keep them as numeric variables and correlate them to the covariate using Spearman's Rank Correlation. The correlation coefficient indicates no multicollinearity between the predictors (r = -0.32)
 
 ```{r examine the data, out.width = "49%"}
+# Use the glimpse function to understand the data better
+glimpse(data)
+
+# Convert libido into a factor
+data$dose <- as.factor(data$dose)
+
 # Obtain the frequency of each level of the factor
 table(data$dose)
 
 # Get some descriptives of the numeric variables
 describe(data$libido)
-hist(data$libido)
-
-
 describe(data$partnerLibido)
+
+
+hist(data$libido)
 hist(data$partnerLibido)
 
 # Correlate Libido and partner libido
-cor.test(data$libido, data$partnerLibido)
+cor(as.numeric(data$dose), data$partnerLibido, method = "spearman")
 
 ```
 
@@ -111,31 +119,144 @@ d.	A model that includes covariate, main, and interaction effects.
 11.	 Report your code and output.
 12.	Using model outputs, compare the fit among models. Report your code and output.
 13.	Based on your comparison, which model should you choose to interpret? 
+
+- Using the Anova() function to compare the different models, the best one to interpret is the full model with the inclusion of the covariate, the main effects, and their interaction. This is because when building the model using Type I SS, the full model had a significantly smaller residual SS than the previous model without the interaction (p < .05). 
+
 14.	Report the selected ANCOVA Table of Results, including all relevant SS, df, MS, F, and p values. You can use R or create a table by hand. Report in APA style.
 
+- Two output tables were created- both saying the same information. I prefer the table that looks like a regression but to not lose points I am showing both. I used the APA Tables from https://apastyle.apa.org/style-grammar-guidelines/tables-figures/sample-tables to help me create these. 
+
 ```{r Fit the ANCOVA and compare the models}
+# Check the contrasts of the main effect
+contrasts(data$dose)
+
+# Grand mean center the covariate
+data$partnerLibido_gmc <- data$partnerLibido - mean(data$partnerLibido)
+
 # Create an empty model 
 empty.model <- lm(libido ~ 1,data)
-summary(empty.model)
 
 # Create a model that includes only the covariate
-covariateOnly.model <- lm(libido ~ partnerLibido, data)
-summary(covariateOnly.model)
+covariateOnly.model <- lm(libido ~ partnerLibido_gmc, data)
+
+# Create a model that includes only the main effect (for Levene's Test)
+MainOnly <- lm(libido ~ dose, data)
 
 # Create a model that includes the covariate and main effects
-covariateMain.model <- lm(libido ~ partnerLibido + libido, data)
-summary(covariateMain.model)
-
+covariateMain.model <- lm(libido ~ partnerLibido_gmc + dose, data)
 
 # Create a model with the covariate, main effects, and interaction
-full.model <- lm(libido ~ partnerLibido * libido, data)
-summary(full.model)
+full.model <- lm(libido ~ partnerLibido_gmc * dose, data)
+full.model.aov <- aov(libido ~ partnerLibido_gmc * dose, data)
 
 # Compare the fit for these models (Type 1 SS)
 anova(empty.model, covariateOnly.model, covariateMain.model, full.model) 
+
+
+# Convert the summary of the regression into a dataset
+full.model.sum_df <- broom::tidy(summary(full.model))
+full.model.aov.sum_df <- broom::tidy(full.model.aov)
+
+# Round the output
+full.model.sum_df <- full.model.sum_df %>%
+  mutate_at(c("estimate", "std.error", "statistic", "p.value"), ~round(.,2))
+
+full.model.aov.sum_df <- full.model.aov.sum_df %>%
+  mutate_at(c("df", "sumsq", "meansq", "statistic", "p.value"), ~round(.,2))
+
+# Rename the variables
+names(full.model.sum_df) <- c("Effect", "Estimate", "SE", "t", "p")
+names(full.model.aov.sum_df) <- c("Source", "df","SS","MS", "F","p")
+
+# Rename the rows
+full.model.sum_df$Effect <- c("Intercept", "Partner's Libido", 
+                                  "No Dose vs Low Dose",
+                                  "No Dose vs High Dose",
+                                  "Parner's Libido x Low Dose",
+                                  "Partner's Libido x High Dose")
+
+full.model.aov.sum_df$Source <- c("Partner's Libido",
+                                  "Viagra Dosage",
+                                  "Parner's Libido x Viagra Dosage",
+                                  "Residuals")
+
+# Print the table
+full.model.aov.sum_df %>%
+  kbl(caption = "ANCOVA Summary Table") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+
+
+full.model.sum_df %>%
+  kbl(caption = "Regression Summary Table") %>%
+  kable_classic(full_width = F, html_font = "Cambria") %>%
+  footnote("F-statistic: 4.286 on 5 and 24 DF,  p-value: 0.006295")
+
 ```
 
 
 ### Assumption Check (10 pts). 
 15.	List all assumptions of ANCOVA.
+
+- Independent observations: We cannot have the same participant's data more than once when the data is in wide format.
+
+- Normality of residuals: The residuals of the model need to look normally distributed.
+
+- Homogeneity of variance: The variance of each level of the factor must be similar to each other.
+
+- Linearity between Covariate and Outcome: There needs to be a linear relationship between the covariate and outcome variable.
+
+- No multicollinearity: There must not be a strong relationship between the covariate and the outcome. 
+
+- Random Sampling: The subjects recruited into the study were sampled randomly. 
+
 16.	Check all assumptions of ANCOVA and report your logic/results.
+
+- Independent observations: We are assuming the observations each belong to a different person. It is difficult to confirm since there is no ID variable in the dataset. 
+
+- Normality of residuals: The histogram and QQplot of the residuals visually looks normally distributed. It also has a p value greater than .05 in the Shapiro-Wilk test, which further supports the errors are normally distributed.
+
+- Homogeneity of variance: Visualization of the variance of the outcome for each of the three levels looks similar. Running Levene's test (p= ns) and the Breush-Pagan test (p=ns) also indicate that the variance of the levels are similar to each other. 
+
+- Linearity Between Covariate and Outcome: This can be identified visually by creating a scatterplot with regression lines going through the dots of each respective group (level of the factor).  
+
+- No multicollinearity: We assessed this in the beginning and found no multicollinearity
+
+- Random Sampling: We are assuming the data were sampled at random. 
+
+```{r checking assumptions of an ANCOVA, out.width= "49%"}
+
+# Check for independence of observations
+hist(resid(full.model))
+plot(full.model, which = c(1, 2)) # the first and second plot
+shapiro.test(resid(full.model))
+
+leveneTest(MainOnly, center = median)
+bptest(MainOnly)
+
+data %>%
+ggplot(aes(x = dose, y = libido)) +
+  geom_boxplot() +
+  theme_classic()
+
+```
+
+
+### Figure of Results (5 pts)
+17.	Create a figure to show the results of the final model.
+
+```{r creating the figure to show the results of the final model}
+data %>%
+ggplot(aes(x = partnerLibido, y = libido, color = dose)) +
+  geom_jitter() +
+  geom_smooth(method = "lm", se = F) +
+  theme_classic()
+
+```
+
+
+### Contrasts & Simple Effects (10 pts)
+18.	Use Effect Coding to examine the difference between doses.
+19.	Use Dummy Coding to examine the difference between doses.
+20.	Compute and report the simple effect of dose on libido at the mean value of partner libido.
+21.	Compute and report the simple effect of dose on libido at partner libido=2.
+22.	Does the slope between partner libido and libido differ across dose? Use simple slopes to examine this effect.

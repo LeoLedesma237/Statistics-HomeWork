@@ -189,7 +189,7 @@ summary(model_cov2)
 Center your continuous predictor/covariates when doing interactions
 
 ```{r}
-epldat$Age2 <- scale(elpdat$Age, center = TRUE, scale = FALSE)
+epldat$Age2 <- scale(epldat$Age, center = TRUE, scale = FALSE)
 
 ```
 
@@ -197,8 +197,8 @@ Now let's compare the model without covariates to the model with covariates.
 
 This doesn't work cause there was missing data in the dataset with the covariates or smt like that
 ```{r}
-anova(model_1, model_cov1)
-anova(model_1, model_cov2)
+#anova(model_1, model_cov1)
+#anova(model_1, model_cov2)
 ```
 
 uh oh, sample sizes differ across models. Let's talk about that. We also didn't find statistical significance of the covariate. What other covariates might we want to examine?
