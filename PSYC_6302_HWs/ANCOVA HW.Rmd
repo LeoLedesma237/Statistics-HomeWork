@@ -260,3 +260,10 @@ ggplot(aes(x = partnerLibido, y = libido, color = dose)) +
 20.	Compute and report the simple effect of dose on libido at the mean value of partner libido.
 21.	Compute and report the simple effect of dose on libido at partner libido=2.
 22.	Does the slope between partner libido and libido differ across dose? Use simple slopes to examine this effect.
+
+```{r contrasts and simple effects}
+# using effect coding
+
+
+
+```
