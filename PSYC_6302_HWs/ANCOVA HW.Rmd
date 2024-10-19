@@ -26,6 +26,7 @@ library(MASS)
 library(DescTools)  #EtaSq (eta-squared)
 library(broom)
 library(kableExtra)
+library(interactions)
 ```
 
 ### Load in the data
@@ -127,27 +128,27 @@ d.	A model that includes covariate, main, and interaction effects.
 - Two output tables were created- both saying the same information. I prefer the table that looks like a regression but to not lose points I am showing both. I used the APA Tables from https://apastyle.apa.org/style-grammar-guidelines/tables-figures/sample-tables to help me create these. 
 
 ```{r Fit the ANCOVA and compare the models}
+# Convert dose into a factor
+data$dose <- factor(data$dose)
+
 # Check the contrasts of the main effect
 contrasts(data$dose)
-
-# Grand mean center the covariate
-data$partnerLibido_gmc <- data$partnerLibido - mean(data$partnerLibido)
 
 # Create an empty model 
 empty.model <- lm(libido ~ 1,data)
 
 # Create a model that includes only the covariate
-covariateOnly.model <- lm(libido ~ partnerLibido_gmc, data)
+covariateOnly.model <- lm(libido ~ partnerLibido, data)
 
 # Create a model that includes only the main effect (for Levene's Test)
 MainOnly <- lm(libido ~ dose, data)
 
 # Create a model that includes the covariate and main effects
-covariateMain.model <- lm(libido ~ partnerLibido_gmc + dose, data)
+covariateMain.model <- lm(libido ~ partnerLibido + dose, data)
 
 # Create a model with the covariate, main effects, and interaction
-full.model <- lm(libido ~ partnerLibido_gmc * dose, data)
-full.model.aov <- aov(libido ~ partnerLibido_gmc * dose, data)
+full.model <- lm(libido ~ partnerLibido * dose, data)
+full.model.aov <- aov(libido ~ partnerLibido * dose, data)
 
 # Compare the fit for these models (Type 1 SS)
 anova(empty.model, covariateOnly.model, covariateMain.model, full.model) 
@@ -244,7 +245,7 @@ ggplot(aes(x = dose, y = libido)) +
 ### Figure of Results (5 pts)
 17.	Create a figure to show the results of the final model.
 
-```{r creating the figure to show the results of the final model}
+```{r creating the figure to show the results of the final model, out.width = "66%"}
 data %>%
 ggplot(aes(x = partnerLibido, y = libido, color = dose)) +
   geom_jitter() +
@@ -263,7 +264,45 @@ ggplot(aes(x = partnerLibido, y = libido, color = dose)) +
 
 ```{r contrasts and simple effects}
 # using effect coding
+contrasts(data$dose) <- cbind(c(-1,1,0), c(-1,0,1))
+contrasts(data$dose)
+full.model.eff <- lm(libido ~ partnerLibido * dose, data)
+summary(full.model.eff)
+
+# Using dummy coding
+contrasts(data$dose) <- cbind(c(0,1,0), c(0,0,1))
+contrasts(data$dose)
+full.model.dum <- lm(libido ~ partnerLibido * dose, data)
+summary(full.model.dum)
+
+# Grand mean center the covariate
+data$partnerLibido_gmc <- data$partnerLibido - mean(data$partnerLibido)
+
+# Create a model with covariate grand mean centered
+full.model.dum <- lm(libido ~ partnerLibido * dose, data)
+summary(full.model.dum)
+
+full.model.dum.gmc <- lm(libido ~ partnerLibido_gmc * dose, data)
+summary(full.model.dum.gmc)
 
 
+
+
+# Create a model where the covariate is at 2
+data$partnerLibido_at2 <- data$partnerLibido -.733
+mean(data$partnerLibido_at2)
+full.model.dum.at2 <- lm(libido ~ partnerLibido_at2 * dose, data)
+summary(full.model.dum.at2)
+
+
+# 
+
+full.model.dum.gmc <- lm(libido ~ partnerLibido_gmc * dose, data)
+summary(full.model.dum.gmc)
+
+sim_slopes(model = full.model, pred = dose, modx = partnerLibido)
 
 ```
+
+
+
