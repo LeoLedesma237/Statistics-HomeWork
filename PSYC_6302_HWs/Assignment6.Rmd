@@ -21,12 +21,14 @@ library(ggplot2)
 library(car) # LevenesTest
 library(kableExtra)
 library(psych)
-library(lmtest) #bptest (Bresuh-Pagan)
+library(lmtest) # bptest (Bresuh-Pagan)
 library(MASS) 
-library(DescTools)  #EtaSq (eta-squared)
+library(DescTools)  # EtaSq (eta-squared)
 library(broom)
 library(kableExtra)
-library(interactions)
+library(emmeans) # emmeans()
+library(interactions) # sim_slopes
+
 ```
 
 ### Load in the data
@@ -66,7 +68,7 @@ data <- read.delim("https://raw.githubusercontent.com/jasp-stats/jasp-data-libra
 
 5.	Check and report the correlations among predictors. Is multicollinearity an issue?
 
-- Since the levels of the factor are ordinal (Placebo, Low Dose, High Dose), we can keep them as numeric variables and correlate them to the covariate using Spearman's Rank Correlation. The correlation coefficient indicates no multicollinearity between the predictors (r = -0.32)
+- Since the levels of the factor are ordinal (Placebo, Low Dose, High Dose), we can keep them as "numeric" variables that are ranked and correlate them to the covariate using Spearman's Rank Correlation. The correlation coefficient indicates no multicollinearity between the predictors because the correlation is not that strong (r = -0.32)
 
 ```{r examine the data, out.width = "49%"}
 # Use the glimpse function to understand the data better
@@ -103,11 +105,11 @@ cor(as.numeric(data$dose), data$partnerLibido, method = "spearman")
 
 8.	Using typical language, write the null hypothesis.
 
-- Viagra dosage has no effect on a participant's libido at any level of the covariate (partner's libido)
+- Viagra dosage has no effect on a participant's libido no matter what their partner's libido is. 
 
 9.	Using typical language, write the alternative hypothesis.
 
-- Viagra dosage does have an effect on a participant's libido at any level of the covariate (parner's libido)
+- Viagra dosage does have an effect on a participant's libido at any level of their partner's libido.
 
 
 ### Fit ANCOVA & Compare Models (10 pts)
@@ -206,7 +208,7 @@ full.model.sum_df %>%
 
 - Linearity between Covariate and Outcome: There needs to be a linear relationship between the covariate and outcome variable.
 
-- No multicollinearity: There must not be a strong relationship between the covariate and the outcome. 
+- No multicollinearity: There must not be a strong relationship between the covariate and the predictor 
 
 - Random Sampling: The subjects recruited into the study were sampled randomly. 
 
@@ -214,11 +216,11 @@ full.model.sum_df %>%
 
 - Independent observations: We are assuming the observations each belong to a different person. It is difficult to confirm since there is no ID variable in the dataset. 
 
-- Normality of residuals: The histogram and QQplot of the residuals visually looks normally distributed. It also has a p value greater than .05 in the Shapiro-Wilk test, which further supports the errors are normally distributed.
+- Normality of residuals: The histogram and QQplot of the residuals visually look normally distributed. It also has a p value greater than .05 in the Shapiro-Wilk test, which further supports the errors are normally distributed.
 
-- Homogeneity of variance: Visualization of the variance of the outcome for each of the three levels looks similar. Running Levene's test (p= ns) and the Breush-Pagan test (p=ns) also indicate that the variance of the levels are similar to each other. 
+- Homogeneity of variance: Visualization using box plots of the variance of the outcome for each of the three levels looks similar. Running Levene's test (p= ns) and the Breush-Pagan test (p=ns) also indicate that the variance of the levels are similar to each other. 
 
-- Linearity Between Covariate and Outcome: This can be identified visually by creating a scatterplot with regression lines going through the dots of each respective group (level of the factor).  
+- Linearity Between Covariate and Outcome: This can be identified visually by creating a scatterplot with regression lines going through the dots of each respective group (level of the factor). This was done for the plot in Q17 and it looks like this assumption was met. 
 
 - No multicollinearity: We assessed this in the beginning and found no multicollinearity
 
@@ -257,10 +259,32 @@ ggplot(aes(x = partnerLibido, y = libido, color = dose)) +
 
 ### Contrasts & Simple Effects (10 pts)
 18.	Use Effect Coding to examine the difference between doses.
+- Effect coding was used by changing the contrasts of dose to a matrix of cbind(c(-1,1,0), c(-1,0,1)). This compares the mean difference of the placebo from the grand mean to the difference of low dose from the grand mean. The second contrast does the same except it is the placebo group compared to the high dose group.
+
 19.	Use Dummy Coding to examine the difference between doses.
+- Dummy coding was used by having the place group remain as zero while the other conditions were 1 in their respective contrast. This compares the mean of the placebo directly to low dosage and then the mean of placebo to high dosage in the second contrast, this gives more power. 
+
 20.	Compute and report the simple effect of dose on libido at the mean value of partner libido.
+- I used regression with a grand mean centered predictor (covariate) to obtain the simple effects of dose on libido at the mean of partner libido. Thus, the beta coefficients produced by the models should be the simple effects since they are the differences of libido when the covariate (partner's libido) is at its mean value.
+
+- At the mean value of partner's libido, the expected value of the participant's libido in the placebo group is 2.67 and the expected value of the participant's libido in the low dosage group is 2.67 + 1.87 = 4.54, this the simple effect here is 1.87.
+
+- At the mean value of partner's libido, the expected value of the participant's libido in the placebo group is 2.67 and the expected value of the participant's libido in the high dosage group is 2.67 + 2.01 = 4.68, this the simple effect here is 2.01.
+
 21.	Compute and report the simple effect of dose on libido at partner libido=2.
+
+- For this question I used emmeans() function from the emmeans package which was able to give me the estimated marginal means. I first obtained the estimated marginal means at the mean value of the covariate to compare it to my results from above- they were the same which gives me confidence I am correct. I then set the level of the covariate to equal 2 and calculated their estimated marginal means, which functions the same as adjusted means of the outcome for the same level of the covariate. 
+
+- When partner's libido is equal to 2, the expected value of the participant's libido in the placebo group is 2.12 and the expected value of the participant's libido in the low dosage group is 3.95, thus the simple effect here is 3.95- 2.12 = 1.83.
+
+- When partner's libido is equal to 2, the expected value of the participant's libido in the placebo group is 2.12 and the expected value of the participant's libido in the high dosage group is 3.95, thus the simple effect here is 4.85 - 2.12 = 2.73.
+
+
 22.	Does the slope between partner libido and libido differ across dose? Use simple slopes to examine this effect.
+
+- Just by going off the simple effects, we can be pretty confident that there is an interaction in terms of slopes of viagra dosage, and the graph of the regression lines for each dose further confirms it. However, we can also test this statistically using the sim_slopes() function from the interactions package. The output shows us the slopes (estimates), which represent the expected value of the outcome at different levels of the factor and their associated p-value indicates whether this slope is statistically different from that of the reference (placebo)- essentially it is doing the same thing that was calculated from the regression with the grand mean centered covariate, except it includes the coefficients for dosage when the covariate is -1SD from the mean and +1SD from the mean. These p-values changing across the different levels of the covariate show that there is an interaction in place, specifically that the expected outcome of high dosage starts off being very different from the placebo at the lower values of the covariate but then tends to be similar to the placebo at the higher levels of the covariate.
+
+
 
 ```{r contrasts and simple effects}
 # using effect coding
@@ -279,30 +303,63 @@ summary(full.model.dum)
 data$partnerLibido_gmc <- data$partnerLibido - mean(data$partnerLibido)
 
 # Create a model with covariate grand mean centered
-full.model.dum <- lm(libido ~ partnerLibido * dose, data)
-summary(full.model.dum)
-
 full.model.dum.gmc <- lm(libido ~ partnerLibido_gmc * dose, data)
 summary(full.model.dum.gmc)
 
+# Test this function to see if the results match that of the grand mean centered covariate regression from above
+simple_effects_at_avg <- emmeans(full.model.dum, ~ dose, at = list(partnerLibido = mean(data$partnerLibido)))
+simple_effects_at_avg
+
+# Identify the estimated marginal means (adjusted means) when the covariate is equal to two
+simple_effects_at_cov_2 <- emmeans(full.model.dum, ~ dose , at = list(partnerLibido = 2))
+simple_effects_at_cov_2
 
 
-
-# Create a model where the covariate is at 2
-data$partnerLibido_at2 <- data$partnerLibido -.733
-mean(data$partnerLibido_at2)
-full.model.dum.at2 <- lm(libido ~ partnerLibido_at2 * dose, data)
-summary(full.model.dum.at2)
-
-
-# 
-
-full.model.dum.gmc <- lm(libido ~ partnerLibido_gmc * dose, data)
-summary(full.model.dum.gmc)
-
+# Calculate the simple slopes
 sim_slopes(model = full.model, pred = dose, modx = partnerLibido)
 
 ```
+
+
+### Interpretation & Write-up (5 pts)
+23.	Using APA formatting, write a concise 1 paragraph report describing the models you tested, model fit, model fit comparisons, model assumptions, model results, contrasts and simple effects, and reference figures/tables relevant for interpreting model results. 
+
+
+A One-way ANCOVA was conducted to test whether different levels of Viagra dosage (placebo, low dose, high dose) influenced subject's libido while controlling for the effects of their partner's libido. Model comparisons using Type I SS concluded that the full model comprised of the covariate, the factor, and their interaction produced the best fit since it had a significantly smaller residual sum of squares compared to the model without including the interaction as a predictor (p < .05). Our results indicated a main effect of dose *F*(2,24)= 5.16, p < .05; a main effect of partner's libido *F*(1,24)= 6.18, p < .05;, and a significant interaction effect *F*(2,24)= 4.18, p < .05. Dummy coding contrasts were used to compare the means of the outcome of low dose and high dose to the placebo (respectively). Due to a significant interaction effect, the effect of Viagra dosage on libido depends on the level of partner's libido. A simple slopes analysis of dosage when the covariate is -1 SD from its mean showed that subject's libido for the high dosage group was statistically different from that of the placebo group (simple effect= 3.83, p < .05). Additionally, the simple slopes analysis showed no significant differences in subject's libido between the high dose and placebo (simple effects= .18, p > .05) groups when the covariate is +1 SD from its mean. Thus, these results indicate that the effect of high Viagra dosage on subject's libido is strongest when the subject's partner tends to have lower libido. Model assumptions were also met, the residuals were normally distributed from visual inspection and Shapiro-Wilk test was not significant, there was no heterscedasticity among the variances of the factor (Levene's test  p > .05), and each observation came from one single individual. 
+
+
+
+### Theory & Concept (10 pts)
+
+1.	True or false. ANOVA is generally robust to violations of normality.
+- **a.	True**
+- b.	False
+
+2.	True or false. To be a true contrast, the sum of the contrasts must equal 1.
+- a.	True
+- **b.	False**
+
+3.	A post-hoc analysis for testing all pairwise comparisons that is most powerful when the number of groups is large is:
+- a.	Tukey
+- **b.	Scheffe**
+- c.	Bonferroni
+- d.	Fisher’s LSD
+
+4.	Which sums of squares type tests the unique contribution of each effect separately?
+- a.	SS Type I
+- b.	SS Type II
+- **c.	SS Type III**
+
+5.	The full ANCOVA model shown below defines separate slopes for each group to allow for group differences in the relationship between the covariate and the dependent variable.
+ 
+ $Y_{ij} = \mu + \alpha_{j} + \beta X_{ij} + \epsilon_{ij}$
+ 
+- a.	True
+- **b.	False**
+
+
+
+
 
 
 
