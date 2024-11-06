@@ -1,0 +1,391 @@
+---
+title: "Assignment 8: Applied Linear Regression"
+author: "Leandro Ledesma"
+date: "2024-11-04"
+output: html_document
+---
+
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(comment = "")
+knitr::opts_chunk$set(warning = FALSE)
+
+```
+
+```{r load in packages, echo = FALSE}
+library(tidyverse)
+library(psych) # Describe
+library(ggplot2)
+library(car) # LevenesTest
+library(kableExtra)
+library(psych)
+library(lmtest) # bptest (Bresuh-Pagan)
+library(DescTools)  # EtaSq (eta-squared)
+library(broom)
+library(kableExtra)
+library(emmeans) # emmeans()
+library(interactions) # sim_slopes
+library(sjPlot)     # create pretty tables
+```
+
+# Learning Objectives
+
+1.	Learn to conduct multiple regression analysis in R.
+2.	Learn to assess regression assumptions in R.
+3.	Learn to interpret and report multiple regression analysis.
+Dataset Description: Use the dataset “College Success” from the online JASP Data Repository (https://johnnydoorn.github.io/DataLibraryBookdown/myChapters/chapter_4.html). This data set provides high school grades, SAT scores, and Grade Point Average of 224 university students.
+Variables:
+
+- 	id - Participant ID
+- 	gpa - Grade Point Average (GPA) after three semester in college
+- 	hsm - Average high-school grade in mathematics
+- 	hss - Average high-school grade in science
+- 	hse - Average high-school grade in English
+- 	satm - SAT score for mathematics
+- 	satv - SAT score for verbal knowledge
+- 	sex - Gender (labels not available)
+
+Notes for Analysis:
+In this assignment, you will run a series of models to predict gpa in college, using:
+
+-   hsm, hss, and hsm as covariates
+- 	satm and satv as predictors
+- 	the interaction between satm and satv
+
+### Data Desctiptives
+
+```{r loading in the data}
+# Load the data
+data <- read.delim("https://raw.githubusercontent.com/jasp-stats/jasp-data-library/main/College%20Success/College%20Success.csv", sep = "," )
+
+# glimpse it
+glimpse(data)
+
+```
+
+
+## Section 1. Conduct a Regression Analysis. 
+
+###  Compute and report correlations among all variables in the model.
+
+- The variables sex and id were removed from correlation matrix
+
+- The correlation table below shows that all variables are correlation to each other. Ignoring the outcome (gpa), we can see that the predictors and covariates are moderately and weakly correlated with each other. The first pattern we can notice is that high school performance tends to correlate pretty well with each other (ex: hsm and hss, hss and hse, hse and hsm). However, the correlations between high school grades and performance on the SAT is much weaker in comparison with the exception for math. 
+
+```{r run a correlation matrix}
+# Remove the sex variable
+data2 <- select(data,-c(sex, id))
+
+# run a correlation matrix
+round(cor(data2),2) %>%
+  kbl(caption = "Correlation Matrix of Predictors, Covariates, and the Outcome") %>%
+  kable_paper("hover", full_width = F)
+
+```
+
+
+## Name and report findings for all 5 regression assumptions discussed in class, using figures when appropriate.
+
+We will first start by fitting the full model, which includes the predictors and covariates of interest in the prediction of gpa scores. 
+
+- **Assumption 1**: Multivariate normality. To test this, we need to create a model and obtain the error terms. These are the values that represent the difference of the observed scores of Y from the predicted scores. We can then run several tests to identify if the distribution of the errors are normally distributed. The issue is these tests are very sensitive to the sample size, and large sample sizes will cause the tests to be biased. A better approach is to produce a Q-Q plot of the residuals. 
+
+- From the plot below, I would say that we could potentially call it normal. Clearly the dots are not on the lines as we would expect, however, I think that this would be passible in an analysis, it's just that the left side of the tail is a little heavy.
+
+```{r run the regression model, out.width= "45%"}
+# Create the full model
+full_model <-  lm(gpa ~ hsm + hss + hse + satm * satv, data)
+
+# Plot a histogram
+hist(resid(full_model))
+
+# Check for the normality of residuals assumption
+qqnorm(resid(full_model))
+qqline(resid(full_model))
+```
+
+- **Assumption 2**: Linearity. We can plot the relationship between the predictors/covariates and the outcome (gpa). We can do this easily using ggplot and some for loops.
+
+- From the plots below, it is a little difficult to tell since the high school measures are restricted to integers ranging from 1-10, which then creates a weird pattern when plotted. The plots that may cause concern are hss and gpa, and hse and gpa. The lines in these plots look slightly curved and not exactly like straight lines. If some of the observations are outliers, then potentially these lines could look like straight lines after the outliers are removed.  
+
+```{r creating plots for predictors and covariates against the outcome, out.width= "45%"}
+# Create vectors for the predictors and for the outcome
+predictors <- data %>% select(hsm:satv)
+outcome <- select(data, gpa)
+
+# Create a for loop to plot the graphs
+for(ii in 1:length(predictors)) {
+  
+  # extract the current predictor
+  currentPred <- predictors[ii]
+  
+  # Bind it to the outcome
+  currentData <- cbind(currentPred, outcome)
+  
+  # rename the variables
+  orgNames <- names(currentData) 
+  names(currentData) <- c("x", "y")
+  
+  # Create the plot
+  currentPlot <- currentData %>%
+    ggplot(aes(x=x, y=y)) +
+    geom_point() +
+    geom_smooth() +
+    theme_classic() +
+    labs(
+       x = orgNames[1],
+       y = orgNames[2]) +
+    theme(plot.title = element_text(size = 14,
+                                  hjust = 0.5),
+        axis.title = element_text(size = 24, 
+                                  face = "bold"),
+        axis.text = element_text(size = 24),
+        plot.caption = element_text(size = 13,
+                                    hjust = 0))
+  
+  
+  plot(currentPlot)
+}
+
+```
+
+
+- **Assumption 3:** The assumption of independent observations. This means that all observations are not coming from the same participants (not repeated measures) and that observations are in no way nested into some groupings that have been failed to be accounted for. We can use the table function to identify that each observation corresponds to a unique ID. We will also assume that there is no nesting taking place!
+
+```{r assumption of independence}
+table(data$id)
+
+```
+
+**Assumption 4**: The assumption of homoscedasticity. This assumption looks at the distribution of errors across the levels of fitted values. We want the errors to be evenly distributed in the plot below, which indicates that there is good variance in the errors across the levels of the fitted values. This looks okay with the except of some errors on the lower end of the fitted values.  
+
+```{r assumption of homoscedasticity, out.width= "48%"}
+plot(full_model, which = 1)
+
+```
+
+**Assumption 5**:  No Multicollinearity. We can check this before running the model by looking at the correlations between predictors and covariates. Additionally we can use the variance inflation factor after running the model to see if there is no multicollinearity. We can use the vif() function from the car package to do this.
+
+We see that the vif values are exceedling high! This is not surprising since the interaction is literally the product of two predictors, thus we would expect it to correlate highly with them. In this example the assumption of multicollinearity is violated because the VIF values are larger than 5. However, we could also center our variables, rerun the analysis and then look at VIF. In this case we see that all values are smaller than 5 and that this assumption (when using this centered model), is not violated. 
+
+
+```{r checking for multicollinearity}
+# Obtain the vif values
+round(vif(full_model),2)
+
+# Create centered predictors
+data <- data %>%
+  mutate(hsm.c = hsm - mean(hsm),
+         hss.c = hss - mean(hss),
+         hse.c = hse - mean(hse),
+         satm.c = satm - mean(satm),
+         satv.c = satv - mean(satv))
+
+# Rerun the model
+full_model_centered <- lm(gpa ~ hsm.c + hss.c + hse.c + satm.c * satv.c, data)
+
+round(vif(full_model_centered),2)
+```
+
+
+## Use the following rules for removing outliers and variables:
+
+a.  Remove outlier values for gpa, hsm, hss, hse, satm, and satv that are beyond ±4.0 standard deviations from the mean. To remove these values, change the value to NA in the dataset.
+
+-	Did you need to remove any values? If so, which ones?
+
+- No values were removed since no one's standardized scores were less than - 4 or greater than 4 standard deviations away from the mean for each respective predictor and the outcome. 
+
+
+```{r identifying and removing outliers}
+# We can standardized all of our numeric variables using the scale() function
+data$gpa.s <- c(scale(data$gpa))
+data$hsm.s <- c(scale(data$hsm))
+data$hss.s <- c(scale(data$hss))
+data$hse.s <- c(scale(data$hse))
+data$satm.s <- c(scale(data$satm))
+data$satv.s <- c(scale(data$satv))
+
+# Select only the standardized variables
+standardized.var  <- data %>% select(gpa.s:satv.s)
+
+# Identify if any outliers exist
+sapply(standardized.var, function(x) min(x))
+sapply(standardized.var, function(x) max(x))
+
+```
+
+b.	Keep all predictors in models. Remove covariates from the final model that have an initial VIF of greater than 5.0.
+
+-	Did you remove any variables from the model? Which ones?
+
+- I centered my predictors and covariates, which resulted in VIF scores all smaller than 5. Thus, all variables will remain in the model. 
+
+
+## Run a set of models and compare models to one another appropriately
+
+a.	Covariate only model
+
+b.	Covariate + main effects
+
+c.	Covariate + main effects + interaction
+
+- After comparing models, it seems like the best model is the one with covariates only. Introducing additional predictors to the model with covariates does not statistically reduce the residual sum of squares.
+
+```{r model comparison}
+# Covariate only model
+cov_model <- lm(gpa ~ hsm.c + hss.c + hse.c, data)
+
+# Covariate and main effects model
+cov_main_model <- lm(gpa ~ hsm.c + hss.c + hse.c + satm.c + satv.c, data)
+
+# Covariate, main effects, and interaction model
+full_model_centered <- lm(gpa ~ hsm.c + hss.c + hse.c + satm.c * satv.c, data)
+
+# model comparison
+anova(cov_model, cov_main_model, full_model_centered)
+
+# summary
+summary(cov_model)
+```
+
+
+## Visualize results using a ggplot figure
+
+You can create any figure, as long as it clearly shows the found relationships among predictor(s) and outcome.
+
+- We will be ploting the slopes and intercepts of the covariate model. We will obtain the slopes from each covariate (while controlling for the effects of the other covariates) and introduce that slope with the y-intercept into the plot using the geom_abline() function. The covariates below are centered, thus the y-intercept represents the point in the line where x =0, which is the average of the covariates. 
+
+
+```{r plotting the covariates, out.width = "49%"}
+# Obtain the variables of only the covariates
+covariate_df <- data %>%
+  select(gpa, hsm.c:hse.c)
+
+for(ii in 1:(length(covariate_df)-1)) {
+  
+  # Obtain the intercept of the covariate model
+  intercept <- coef(cov_model)[1]
+  
+  # Obtain the slope of one of the covariates
+  slope <- coef(cov_model)[ii + 1]
+  
+  # Obtain the name of the current covariate
+  currentCov <- names(coef(cov_model)[ii + 1])
+  
+  # Extract the varibles of interest
+  cov_df <- covariate_df[, c(currentCov, "gpa")]
+  
+  # Rename the variables
+  names(cov_df) <- c("x", "y")
+  
+  # Create a title
+  title = paste0("The relationship of ",currentCov," and gpa while controlling\nfor the effects of the other two covariates") 
+  
+  # Create a graph
+  currentPlot <- cov_df %>%
+    ggplot(aes(x= x, y = y)) +
+    geom_point() +
+    geom_abline(intercept = intercept, slope = slope, color = "blue", size = 2) +
+    theme_classic() +
+    labs(title = title,
+       x = currentCov,
+       y = "gpa") +
+    theme(plot.title = element_text(size = 20,
+                                  hjust = 0.5),
+        axis.title = element_text(size = 24, 
+                                  face = "bold"),
+        axis.text = element_text(size = 24),
+        plot.caption = element_text(size = 13,
+                                    hjust = 0))
+  
+  plot(currentPlot)
+
+}
+
+```
+
+
+# Section 2. Write a results section of your findings. In this section, identify the following:
+
+1.	(1 pt) A brief description of the study purpose and sample
+2.	(1 pt) Report relevant descriptive statistics for all of the variables included in the analyses.
+3.	(1 pt) Report the regression equation, including estimates.
+4.	(1 pt) Report the results of the model comparisons from an ANOVA analysis using the sjPlot package.
+5.	(1 pt) Report the R-squared and Adjusted R-squared values
+6.	(1 pt) Report the results of the Coefficients Table, using the sjPlot package.
+7.	(6 pts) Interpret your results and conclusions about
+
+a.	The overall model comparisons
+b.	Each predictor coefficient
+c.	The proportion of variability due predictor(s)
+
+8.	(2 pts) Briefly describe research and practical implications of the study findings
+
+### Response to the questions above
+
+- The purpose of this study was to investigate if SAT scores on math, verbal knowledge, and their interaction were predictive of GPA three semesters into college after controlling for the effects of performance in high school courses. Multiple regression was implemented to test this since it can incorporate several continuous predictive variables into the model while controlling for their effects. Additionally, multiple regression can identify which factors are significantly predictive and produce a value that represents the proportion of variance in the outcome that is explained by the model ($R^2$). The sample included 224 college students, which would provide enough power to handle the complex model that would answer the research question mentioned. Lastly there was no missing data, thus all 224 observations were included in the model. 
+
+- GPA is a variable that represents a students grade point average that represents how well they are doing in all courses after three semesters in college. This variable is restricted in range from 0 to 4, with 0 indicating failing every course and 4 indicating getting an A in every course so far. The average GPA is 2.64 with a standard deviation of .78. This mean GPA seems pretty low since it indicates most subjects are getting B's and C's in their courses. The grades from the high school classes (science, math, English) is a bit weird to interpret. They range from 2/3-10. If these values indicate percentages, then there are issues because there is rounding taking place, which diminishes the accuracy of our model, and also this means that some participants graduated high school (or maybe dropped out) with grades in the 20's and 30's. Average performance in high school classes is about a low B (~81%) with standard deviations ranging from 1.51 - 1.70 (~ 16%). The SAT tests are on a much different scale with a mean of 595.29 (*SD*=86.40) for math and a mean of 504.55 (*SD*=92.61) for verbal knowledge. Comparing SAT scores, it seems like performance in math overall was greater than that in verbal knowledge.
+
+
+- The Regression equation used for the final model was: $Y = 2.64 + .17X_{1} +  .04X_{2} + .04X_{3} + \epsilon$. 
+
+- Where: 
+    - $Y$ = GPA
+    - $X_{1}$ = high school math grade
+    - $X_{2}$ = high school science grade
+    - $X_{3}$ = high school English grade
+    - $\epsilon$ = error term
+
+
+- Three models were compared to each other. The first included the covariates only, which are performance in high school classes. The second included covariates and the main effects of SAT math and SAT verbal knowledge. The third model included the covariates, the main effects of SAT math and SAT verbal knowledge, and the interaction between the SAT measures. Models were compared using the anova() function, which resulted in the first model being the one of best fit. Additionally, producing a Coefficient Table using the sjPlot package showed that the only significant predictor in the three models was high school math grades. That information along with the coefficient of determination ($R^2$) and the adjusted coefficient of determination ($adj-R^2$), showed that the first model with covariates only is the one of best fit ($R^2$= .21; $adj-R^2$= .19). These results are present fully in the **supplementary information** section. 
+
+- As mentioned, the model that was the best fit from the model comparison was the one that included covariates only. This is because model comparison using the anova() function did not display any significantly reduced residual sums of squares in more complex models. Thus, the model with grades for high school courses will be the one that gets interpreted. This model was comprised only of centered covariates and significantly predicted GPA *F*(3,220)= 18.86, *p* < .001; $R^2$= .20; $adj-R^2= .19$. From the covariates in the model, or predictors, there was a main effect of high school math grades ($\beta$= .17, *t*= 4.75, *p* < .001) but no significant effect of high school science grades ($\beta$= .04, *t*= 0.91, *p* = n.s) and no significant main effect of high school English grades ($\beta$= .04, *t*= 1.12, *p* = n.s) on GPA. The coefficient of determination ($R^2$) can be interpreted as the proportion of variability in the outcome that is explained by the model. Thus, in our model, around 20% of the variance in GPA can be explained by the covariates ($R^2 = .20$). In terms of the beta coeffiecients, they represent an expected mean change in GPA for every one unit increase in one of the covariates/predictors while controlling for the effects of the others in the model. When it comes to high school math grades, an increase in 1 unit for this grade (which really is an increase in 10 points), will lead to an increase in GPA by .17. Lastly, this model has centered variables, thus, the y-intercept will represent the expected value for GPA for someone who is average in all high school classes (Y-intercept= 2.64).
+
+- The main practical implications from this study is that, for some reason, high school math performance is a large (and only ) driver of GPA outcomes in college. Thus, if I wanted to predict another college student's GPA, I could so to some degree by just knowing their grade in high school math class. This makes the process pretty easy since I only need information on one variable. Since this explains around ~20% of the outcome, it still leaves more room for other predictors to be introduced into a new model to further explain some of the variance. It would also be good to know more information about the subjects in this sample, such as their age, sex, and major. We do have sex available, and it should have been introduced into the model. There is a lot of information that is missing from this dataset that makes the interpretation of these results limited. Other potential factors to look into are whether these subjects were from the same high school or different high schools and what their socio economic status is. Overall, the interpretation of these results should be taken lightly because there are still many unknowns about our sample that need to be accounted for before a direct conclusion can be made.  
+
+
+### Supplementary Information
+
+```{r reporting descriptives of variables}
+# Obtain all variables included into any one of the models.
+cont_vars <- data %>%
+  select(gpa:satv)
+
+# Create a list containing the ouput of describe
+describe_list <- list()
+
+# Run a for loop that gets their descriptives
+for(ii in 1:length(cont_vars)) {
+
+  describe_list[[ii]] <- round(describe(cont_vars[,ii]),2)
+
+}
+
+# Bind them into one dataset
+describe_table <- do.call(rbind,describe_list)
+
+# Rename the rows
+row.names(describe_table) <- names(cont_vars)
+
+# Print out the table
+describe_table %>%
+  kbl(caption = "Descriptives of the variables included in the INTENDED full model") %>%
+  kable_paper(full_width = F)
+```
+
+
+```{r reporting regression}
+# summary
+summary(cov_model)
+```
+
+
+```{r showing the tab_model output}
+tab_model(cov_model, cov_main_model, full_model_centered, show.df = T)
+
+```
+

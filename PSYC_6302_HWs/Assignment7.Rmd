@@ -1,0 +1,94 @@
+---
+title: "Assignment 7: Simple Regression"
+author: "Leandro Ledesma"
+date: "2024-10-29"
+output: html_document
+---
+
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(comment = "")
+knitr::opts_chunk$set(warning = FALSE)
+
+```
+
+```{r load in packages, echo = FALSE}
+library(tidyverse)
+library(psych) # Describe
+library(ggplot2)
+library(car) # LevenesTest
+library(kableExtra)
+library(psych)
+library(lmtest) # bptest (Bresuh-Pagan)
+library(MASS) 
+library(DescTools)  # EtaSq (eta-squared)
+library(broom)
+library(kableExtra)
+library(emmeans) # emmeans()
+library(interactions) # sim_slopes
+```
+
+## Section 1. Regression Basics
+
+1.	(1 pt) Why is it unrealistic for most social science research questions to assume a deterministic relationship between 2 variables? (provide 2 reasons)
+
+- Research in the social sciences usually has a lot of error present which could be attributed to measurements, individual differences, tester error, experimental design complications etc. The second reason is that deterministic relationship in general are rare- so we would expect almost all if not all of social science research to not assume a deterministic relationship. 
+
+2.	(3 pts) In a bivariate linear regression equation Y = a + bX
+
+a)	What is the dependent and what is the independent variable in this equation?
+
+- Y is the dependent variable and X is the independent variable.
+
+b)	What does the intercept (a) in this equation mean?
+
+- The intercept is the value of the regression line (fitted values) when the independent variable (X) is equal to zero. 
+
+c)	What does the slope (b) in this equation mean?
+
+- The slope is the relationship between the independent variable and the outcome. It informs us if the relationship is positive or negative and its associated p-value can tell us if it is a significant predictor or not. We can think of the slope as the unit of increase for Y for every 1 unit increase in X. 
+
+3.	(1 pt) How does that the regression slope coefficient relate to the covariance and product-moment correlation?
+
+- The following applies to simple regressions only:
+
+\begin{align*}
+
+R^2_{XY} = \frac{\hat{\sigma_{\hat{Y}}^2}}{\hat{\sigma^2_{Y}}} 
+
+\end{align*}
+
+Where:
+
+- $R^2_{XY}$: is the coefficient of determination. It measures the proportion of variability in Y accounted for by X. 
+
+- $\hat{\sigma_{\hat{Y}}^2}$: is equal to the variance of the predicted Y-scores
+
+- $\hat{\sigma^2_{Y}}$: is equal to the variance of the observed Y-scores
+
+
+\begin{align*}
+
+b = r_{XY}\frac{\hat{\sigma}_{Y}}{\hat{\sigma_{X}}}
+
+\end{align*}
+
+
+
+
+4.	(1 pt) Write down the bivariate linear regression equation for the predicted Y variable (Y-hat)
+
+- $\hat{Y} = \beta_{0} + \beta X$
+
+5.	(1 pt) How is the error variable e mathematically defined in linear regression (hint: use an equation to mathematically define a variable)?
+
+- $Y = \beta_{0} + \beta X + e$
+
+6.	(1 pt) How can the coefficient of determination be calculated in a linear regression analysis? Show an equation and write a description of the equation
+
+- $ $
+
+7.	(1 pt) What kinds of sums of squares are considered in linear regression analysis?
+8.	(1 pt) Professor Braun computes a linear regression to examine the relationship between studying and exam scores. She finds that students who did not study for their exam are expected to score 32 points. For each additional hour that a student studies, the average increase in the number of points on the exam is 6 points. Based on this information, write the linear equation for the observed Y scores.
